@@ -1,5 +1,7 @@
 # 🔥 HotPlex (Hot-Multiplexer)
 
+> **From 5000ms 🐢 to 200ms 🚀. HotPlex keeps your AI agents hot.**
+
 *Read this in other languages: [English](README.md), [简体中文](README_zh.md).*
 
 **HotPlex** is a high-performance **Process Multiplexer** designed specifically for running heavy, local AI CLI Agents (like Claude Code, OpenCode, Aider) in long-lived server or web environments. 

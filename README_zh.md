@@ -1,5 +1,7 @@
 # 🔥 HotPlex (Hot-Multiplexer)
 
+> **从 5000ms 🐢 锐减至 200ms 🚀。HotPlex 让你的 AI 智能体时刻保持“热启动”。**
+
 *Read this in other languages: [English](README.md), [简体中文](README_zh.md).*
 
 **HotPlex** 是一个高性能的**进程多路复用器 (Process Multiplexer)**，专为在长生命周期的服务器或 Web 环境中运行繁重的本地 AI CLI 代理（如 Claude Code、OpenCode、Aider）而设计。
