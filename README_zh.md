@@ -1,8 +1,12 @@
-<p align="center">
-  <img src="docs/images/logo.svg" width="200" alt="hotplex logo">
-</p>
-
 # 🔥 hotplex
+
+<p align="center">
+  <a href="https://github.com/hrygo/hotplex/actions/workflows/ci.yml"><img src="https://github.com/hrygo/hotplex/actions/workflows/ci.yml/badge.svg" alt="Build Status"></a>
+  <a href="https://github.com/hrygo/hotplex/releases"><img src="https://img.shields.io/github/v/release/hrygo/hotplex?style=flat-square" alt="Latest Release"></a>
+  <a href="https://pkg.go.dev/github.com/hrygo/hotplex"><img src="https://img.shields.io/badge/go-reference-007d9c?style=flat-square&logo=go" alt="Go Reference"></a>
+  <a href="https://goreportcard.com/report/github.com/hrygo/hotplex"><img src="https://goreportcard.com/badge/github.com/hrygo/hotplex?style=flat-square" alt="Go Report Card"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/hrygo/hotplex?style=flat-square" alt="License"></a>
+</p>
 
 > **从 5000ms 🐢 锐减至 200ms 🚀。hotplex 让你的 AI 智能体时刻保持“热启动”。**
 
@@ -21,24 +25,22 @@
 
 ## 💡 愿景与应用场景
 
-创建 hotplex 的原始驱动力是为了**赋能 AI 应用程序毫不费力地集成强大的 CLI 代理**（例如 Claude Code），作为其外部的“肌肉”。您的 AI 应用无需从零开始重复造轮子去构建编码、执行和文件操作能力，而是可以直接借用这些成熟 CLI 工具的强大功能。
+hotplex 的核心价值在于**赋能 AI 应用程序轻松集成强大的 CLI 代理**（如 **Claude Code**, **Aider**, 或 **OpenCode**），使其成为 AI 的外部“肌肉”。通过 hotplex，你可以获得亚秒级的响应速度，无需重复造轮子。
 
-关键应用场景包括：
+*   🌐 **Web 版 AI 智能体**: 为 Claude Code 构建功能完备的 Web UI。用户通过浏览器交互，hotplex 在后端管理持久的沙盒化 CLI 进程。
+*   🔧 **DevOps 工具链自动化**: 将 AI 直接集成到运维流程中。让智能体通过持久会话执行脚本、分析日志并排查故障。
+*   🚀 **CI/CD 智能集成**: 在流水线中引入智能代码审查与漏洞修复，彻底免去笨重 Node.js 工具的启动延迟。
+*   🕵️ **智能 AIOps**: 打造运维机器人，持续监控系统并通过受控的终端会话自主执行安全修复指令。
 
-- **Web 版 AI 智能体**: 构建全功能 Web 版的 Claude Code。用户通过流畅的浏览器 UI 进行交互，而 hotplex 在安全沙盒化的后端环境中可靠地管理着持久的 Claude CLI 进程。
-- **DevOps 工具链**: 将 AI 直接集成到您的 DevOps 工作流中。让智能体通过持久的 hotplex 会话自动执行 Shell 脚本、读取 Kubernetes 日志并排查基础设施故障。
-- **CI/CD 流水线**: 将智能代码审查、自动化测试和动态漏洞修复直接无缝嵌入您的 Jenkins、GitLab 或 GitHub Actions 流水线中，彻底免去每次重复启动笨重 Node.js 工具带来的延迟开销。
-- **智能运维 (AIOps)**: 打造智能运维机器人 (ops-bots)，持续监控系统、分析事件报告，并通过受控的、多路复用的终端会话安全地自主执行恢复命令。
+## ✨ 特性概览
 
-## 🛠 特性概览
-
-- **极速热启动：** 初始启动后，后续指令响应达到毫秒级。
-- **会话池自动回收 (GC)：** 自动跟踪空闲进程，并在超时（默认 30 分钟）后终止，节省内存。
-- **原生工具约束 (v0.2.0+)：** 在引擎层级通过 CLI 原生参数硬性限制智能体能力（例如禁用 `Bash` 或网络访问工具）。
-- **WebSocket 网关：** 包含一个开箱即用的服务器 (`hotplexd`)，原生支持 WebSockets 接入。
-- **原生 Go SDK：** 通过 `import "github.com/hrygo/hotplex/pkg/hotplex"` 直接嵌入到 Go 后端。
-- **正则安全防火墙：** 内置 `danger.go` 预检拦截器，在指令到达智能体前阻断破坏性命令（如 `rm -rf /`、Fork 炸弹等）。
-- **上下文隔离：** 使用 UUID v5 确定性命名空间生成算法，确保会话沙箱的逻辑隔离。
+*   **⚡ 极速热启动：** 初始启动后，后续指令响应达到毫秒级 (~200ms)。
+*   **♻️ 会话池自动回收 (GC)：** 自动跟踪空闲进程并清理释放资源。
+*   **🛡️ 原生工具约束：** 在引擎层级通过 CLI 原生参数硬性限制智能体能力（例如禁用 `Bash` 或网络权限）。
+*   **🔌 WebSocket 网关：** 包含 `hotplexd` 独立服务器，原生支持 WebSockets 接入。
+*   **📦 原生 Go SDK：** 提供高层次 Go API，方便直接嵌入到您的后端服务中。
+*   **🔥 安全性防火墙：** 内置 `danger.go` 拦截器，在指令下发前阻断破坏性命令（如 `rm -rf /`）。
+*   **🔒 上下文隔离：** 基于 PGID 的进程隔离与确定性的 UUID v5 会话空间。
 
 ## 📦 架构设计
 
@@ -119,17 +121,25 @@ err := engine.Execute(ctx, cfg, "重构 main.go 文件", func(eventType string, 
 })
 ```
 
-## 🔒 安全性
+## 🔒 安全性设计
 
-hotplex 在你的机器上执行 LLM 生成的 Shell 代码。**请谨慎使用。**
+hotplex 致力于在执行 LLM 生成的代码时提供多重安全保障：
 
-我们通过以下手段降低风险：
-1.  **原生能力治理**：从 v0.2.0 开始，我们优先使用原生工具限制 (`AllowedTools`) 而非不稳定的路径拦截，确保智能体仅拥有必要的“肌肉”。
-2.  **指令预检 (WAF)**：基于正则的防御层，在指令下发前拦截破坏性模式（如 `mkfs`, `dd`, `rm -rf /`）。
-3.  **进程组隔离 (PGID)**：会话终止时，hotplex 对整个进程组发送 `SIGKILL`，确保 CLI 及其产生的所有子进程被瞬间物理清除。
-4.  **工作目录锁定**：智能体被限制在 Config 中指定的 `WorkDir` 路径内。
+1.  **🛡️ 能力治理**：优先使用原生工具限制 (`AllowedTools`)，确保智能体仅拥有最小权限。
+2.  **🔥 指令预检 (WAF)**：正则防御层级，实时拦截 `mkfs`, `dd`, `rm -rf /` 等危险指令。
+3.  **⚰️ 进程组清理 (PGID)**：会话终止时对整个进程组发送 `SIGKILL`，杜绝孤儿进程残留。
+4.  **🏗️ 目录锁定**：严格限制智能体在指定的 `WorkDir` 路径内活动。
 
-## 路线图 (Roadmap)
-- [ ] 提取 Provider 接口 (增加对 `OpenCode` 的支持)
-- [ ] 远程 Docker 沙盒执行能力 (取代本地操作系统执行)
-- [ ] 提供 REST API 接口，用于会话自省管理和强制终止
+---
+
+## 🗺️ 路线图 (Roadmap)
+- [ ] 提取 Provider 接口 (增加对 `Aider` 的通用支持)
+- [ ] 远程 Docker 沙盒执行驱动
+- [ ] 提供管理 REST API，用于会话自省与管理
+- [ ] 集成 [Firebase Genkit](https://firebase.google.com/docs/genkit) (Go SDK)
+
+## 👋 参与贡献
+欢迎任何形式的贡献！请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 了解开发指引。
+
+## 📄 开源协议
+hotplex 基于 [MIT 协议](LICENSE) 开源。

@@ -1,8 +1,12 @@
-<p align="center">
-  <img src="docs/images/logo.svg" width="200" alt="hotplex logo">
-</p>
-
 # 🔥 hotplex
+
+<p align="center">
+  <a href="https://github.com/hrygo/hotplex/actions/workflows/ci.yml"><img src="https://github.com/hrygo/hotplex/actions/workflows/ci.yml/badge.svg" alt="Build Status"></a>
+  <a href="https://github.com/hrygo/hotplex/releases"><img src="https://img.shields.io/github/v/release/hrygo/hotplex?style=flat-square" alt="Latest Release"></a>
+  <a href="https://pkg.go.dev/github.com/hrygo/hotplex"><img src="https://img.shields.io/badge/go-reference-007d9c?style=flat-square&logo=go" alt="Go Reference"></a>
+  <a href="https://goreportcard.com/report/github.com/hrygo/hotplex"><img src="https://goreportcard.com/badge/github.com/hrygo/hotplex?style=flat-square" alt="Go Report Card"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/hrygo/hotplex?style=flat-square" alt="License"></a>
+</p>
 
 > **From 5000ms 🐢 to 200ms 🚀. hotplex keeps your AI agents hot.**
 
@@ -19,26 +23,24 @@ Running local CLI agents from a backend service (like a Go API) usually means sp
 *   **The Problem:** Tools like `claude` (Claude Code) are heavy Node.js applications. Firing up `npx @anthropic-ai/claude-code` takes **3-5 seconds** just to boot up the V8 engine, read the filesystem context, and authenticate. For a real-time web UI, this latency makes the agent feel incredibly slow and unresponsive.
 *   **The Solution:** hotplex boots the CLI process *once* per user/session, keeps it alive in the background (within a secure `pgid`), and establishes a persistent pipeline. When the user sends a new message, hotplex instantly injects it via `Stdin` and streams the JSON responses back via `Stdout`. Latency drops from **5000ms to < 200ms**.
 
-## 💡 Vision & Application Scenarios
+## 💡 Vision & Use Cases
 
-The original driving force behind hotplex is to **empower AI applications to effortlessly integrate powerful CLI agents** (like Claude Code) as their external "muscles." Instead of reinventing the wheel to build coding, execution, and file-manipulation capabilities from scratch, your AI app can instantly borrow the immense capabilities of these mature CLI tools.
+hotplex empowers AI applications to integrate powerful CLI agents (like **Claude Code**, **Aider**, or **OpenCode**) as their external "muscles." Instead of reinventing the wheel, your app can leverage these mature tools with sub-second latency.
 
-Key Application Scenarios include:
+*   🌐 **Web-based AI Agents**: Build a fully functional Web UI for Claude Code. Users interact via a browser while hotplex manages persistent, sandboxed CLI processes.
+*   🔧 **DevOps Automation**: Integrate AI directly into toolchains. Have agents execute shell scripts, analyze K8s logs, and troubleshoot infrastructure over a persistent session.
+*   🚀 **CI/CD Intelligence**: Embed code review and dynamic bug fixing into pipelines without the heavy boot overhead of Node.js tools.
+*   🕵️ **Intelligent AIOps**: Create bots that continuously monitor systems and execute safe remediation commands via controlled terminal sessions.
 
-- **Web-based AI Agents**: Build a fully functional Web version of Claude Code. Users interact via a sleek browser UI while hotplex reliably manages the persistent Claude CLI process in a sandboxed backend environment.
-- **DevOps Toolchains**: Integrate AI directly into your DevOps workflows. Have an agent autonomously execute shell scripts, read Kubernetes logs, and troubleshoot infrastructure issues over a persistent hotplex session.
-- **CI/CD Pipelines**: Embed intelligent code review, automated testing, and dynamic bug fixing right into your Jenkins, GitLab, or GitHub Actions pipelines without the latency overhead of spinning up heavy Node.js tools repeatedly.
-- **Intelligent Operations (AIOps)**: Create intelligent ops-bots that continuously monitor systems, analyze incident reports, and autonomously execute safe remediation commands via a controlled, hot-multiplexed terminal session.
+## ✨ Key Features
 
-## 🛠 Features
-
-- **Blazing Fast Hot-Starts:** Instant response times after the initial boot.
-- **Session Pooling (GC):** Automatically tracks idle processes and terminates them after a configurable timeout (default 30m) to save RAM.
-- **Native Tool Constraints (v0.2.0+):** Hard-restrict agent capabilities (e.g., disabling `Bash` or `Internet` tools) at the engine level using native CLI flags.
-- **WebSocket Gateway:** Includes a standalone batteries-included server (`hotplexd`) that exposes the multiplexer natively over WebSockets.
-- **Native Go SDK:** Import `github.com/hrygo/hotplex/pkg/hotplex` to embed the engine directly into your Go backend.
-- **Regex Security Firewall:** Built-in `danger.go` pre-flight interceptor blocks destructive commands (`rm -rf /`, fork bombs, etc.) before they even reach the agent.
-- **Context Isolation:** Uses UUID v5 deterministic namespaces to guarantee sandboxed session isolation.
+*   **⚡ Blazing Fast Hot-Starts:** Instant response times after the initial boot (~200ms).
+*   **♻️ Session Pooling (GC):** Automatically tracks and cleans up idle processes to save system resources.
+*   **🛡️ Native Tool Constraints:** Hard-restrict agent capabilities (e.g., disabling `Bash` or `Internet` tools) at the engine level.
+*   **🔌 WebSocket Gateway:** Includes `hotplexd`, a standalone server that exposes the multiplexer natively over WebSockets.
+*   **📦 Native Go SDK:** High-level Go API for embedding the engine directly into your backend.
+*   **🔥 Security Firewall:** Built-in `danger.go` pre-flight interceptor blocks destructive commands (e.g., `rm -rf /`).
+*   **🔒 Context Isolation:** PGID-based process isolation and UUID v5 deterministic namespaces.
 
 ### 📦 Architecture
 
@@ -121,15 +123,23 @@ err := engine.Execute(ctx, cfg, "Refactor the main.go file", func(eventType stri
 
 ## 🔒 Security Posture
 
-hotplex executes LLM-generated shell code on your machine. **Use with caution.**
+hotplex executes LLM-generated shell code. **Security is our top priority.**
 
-We mitigate risks via:
-1.  **Native Capability Governance:** As of v0.2.0, we prioritize native tool restrictions (`AllowedTools`) over unstable path interception. This ensures the agent is only granted the specific muscles it needs.
-2.  **Danger Detector (WAF):** A regex-based layer intercepts and blocks destructive patterns (e.g., `mkfs`, `dd`, `rm -rf /`) before they reach the OS.
-3.  **Process Groups (PGID):** When a session is terminated, hotplex sends `SIGKILL` to the entire negative Process Group ID (`-pgid`), guaranteeing that the CLI and all child/grandchild processes are instantly eradicated.
-4.  **Context WorkDirs:** The agent is physically locked to the `WorkDir` provided in the Config.
+1.  **🛡️ Capability Governance:** We prioritize native tool restrictions (`AllowedTools`) to ensure the agent only has access to specific binaries.
+2.  **🔥 Danger Detector (WAF):** A regex-based layer intercepts and blocks destructive patterns (e.g., `mkfs`, `dd`, `rm -rf /`) before they reach the shell.
+3.  **⚰️ Process Groups (PGID):** Termination sends `SIGKILL` to the entire process group, ensuring no orphan processes are leaked.
+4.  **🏗️ Filesystem Jails:** The agent is physically locked to the designated `WorkDir`.
 
-## Roadmap
-- [ ] Provider interface extraction (support for `OpenCode`)
-- [ ] Remote Docker sandbox execution (replacing local OS execution)
-- [ ] REST API endpoints for session introspection
+---
+
+## 🗺️ Roadmap
+- [ ] Provider interface abstraction (Generic support for `Aider`)
+- [ ] Remote Docker sandbox execution driver
+- [ ] Management REST API for session introspection
+- [ ] Integration with [Firebase Genkit](https://firebase.google.com/docs/genkit)
+
+## 👋 Contributing
+We welcome contributions! Please see our [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## 📄 License
+hotplex is released under the [MIT License](LICENSE).
