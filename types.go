@@ -3,7 +3,7 @@ package hotplex
 import (
 	"fmt"
 
-	"github.com/hrygo/hotplex/pkg/internal/strutil"
+	"github.com/hrygo/hotplex/internal/strutil"
 )
 
 // TruncateString truncates a string to a maximum length for logging.

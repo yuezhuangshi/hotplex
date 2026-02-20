@@ -1,5 +1,7 @@
 # Binaries
 /cmd/hotplexd/hotplexd
+dist/
+bin/
 *.exe
 *.exe~
 *.dll

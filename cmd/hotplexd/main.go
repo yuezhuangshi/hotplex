@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/hrygo/hotplex"
 	"github.com/hrygo/hotplex/internal/server"
-	"github.com/hrygo/hotplex/pkg/hotplex"
 )
 
 func main() {

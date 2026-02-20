@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/hrygo/hotplex/pkg/hotplex"
+	"github.com/hrygo/hotplex"
 )
 
 var upgrader = websocket.Upgrader{

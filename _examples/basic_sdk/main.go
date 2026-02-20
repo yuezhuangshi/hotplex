@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/hrygo/hotplex/pkg/hotplex"
+	"github.com/hrygo/hotplex"
 )
 
 /*
