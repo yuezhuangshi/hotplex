@@ -98,10 +98,25 @@ func TestClaudeCodeProvider_BuildInputMessage(t *testing.T) {
 		t.Fatal("Expected content to be a non-empty slice")
 	}
 
-	// Task prompt should be prepended
+	// Task prompt should be prepended with XML tags and CDATA
 	text := content[0]["text"].(string)
 	if text == "" {
 		t.Error("Expected non-empty text content")
+	}
+	expected := "<task>\n<![CDATA[\nYou are a code reviewer\n]]>\n</task>\n\n<user_input>\n<![CDATA[\nHello, world!\n]]>\n</user_input>"
+	if text != expected {
+		t.Errorf("Expected structured XML prompt, got:\n%s", text)
+	}
+}
+
+func TestClaudeCodeProvider_BuildInputMessage_NoInstructions(t *testing.T) {
+	provider, _ := NewClaudeCodeProvider(ProviderConfig{Type: ProviderTypeClaudeCode, Enabled: true}, nil)
+	msg, _ := provider.BuildInputMessage("Hello!", "")
+	content := msg["message"].(map[string]any)["content"].([]map[string]any)
+	text := content[0]["text"].(string)
+	expected := "Hello!"
+	if text != expected {
+		t.Errorf("Expected raw prompt when no instructions, got:\n%s", text)
 	}
 }
 
@@ -229,6 +244,42 @@ func TestOpenCodeProvider_BuildCLIArgs(t *testing.T) {
 	assertContains(t, args, "--non-interactive")
 	assertContains(t, args, "--provider")
 	assertContains(t, args, "anthropic")
+}
+
+func TestOpenCodeProvider_BuildInputMessage(t *testing.T) {
+	provider, _ := NewOpenCodeProvider(ProviderConfig{Type: ProviderTypeOpenCode, Enabled: true}, nil)
+
+	msg, _ := provider.BuildInputMessage("Hello!", "Be specific")
+	prompt := msg["prompt"].(string)
+	expected := "<task>\n<![CDATA[\nBe specific\n]]>\n</task>\n\n<user_input>\n<![CDATA[\nHello!\n]]>\n</user_input>"
+	if prompt != expected {
+		t.Errorf("Expected OpenCode structured prompt, got:\n%s", prompt)
+	}
+
+	cmd := provider.BuildHTTPCommand("Hello!", "Be specific")
+	if cmd != expected {
+		t.Errorf("Expected OpenCode HTTP command prompt, got:\n%s", cmd)
+	}
+}
+
+func TestOpenCodeProvider_DetectTurnEnd(t *testing.T) {
+	provider, _ := NewOpenCodeProvider(ProviderConfig{Type: ProviderTypeOpenCode, Enabled: true}, nil)
+
+	tests := []struct {
+		event *ProviderEvent
+		want  bool
+	}{
+		{&ProviderEvent{Type: EventTypeAnswer, Content: "some answer"}, false},
+		{&ProviderEvent{Type: EventTypeResult}, true},
+		{&ProviderEvent{Type: EventTypeError}, true},
+	}
+
+	for _, tt := range tests {
+		got := provider.DetectTurnEnd(tt.event)
+		if got != tt.want {
+			t.Errorf("DetectTurnEnd(%s) = %v, want %v", tt.event.Type, got, tt.want)
+		}
+	}
 }
 
 func TestOpenCodeProvider_ParseEvent(t *testing.T) {

@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.7.3] - 2026-02-22
+
+### Added
+- **Structured Prompting (XML + CDATA)**: Prompts are now encapsulated in `<task>` and `<user_input>` tags with CDATA protection to prevent parsing interference from complex inputs or code snippets.
+
+### Changed
+- **Conditional Prompt Construction**: When `TaskInstructions` is empty, the user prompt is passed as raw text, maintaining simplicity and directness for simple queries.
+
+### Fixed
+- **OpenCode Turn Detection**: Fixed `DetectTurnEnd` in `OpenCodeProvider` to properly handle `EventTypeResult`.
+- **Provider Tests**: Updated and validated all provider-specific unit tests.
+
 ## [v0.7.2] - 2026-02-22
 
 ### Added

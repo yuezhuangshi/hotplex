@@ -152,10 +152,12 @@ func (p *ClaudeCodeProvider) BuildEnvVars(opts *ProviderSessionOptions) []string
 
 // BuildInputMessage constructs the stream-json input message.
 func (p *ClaudeCodeProvider) BuildInputMessage(prompt string, taskInstructions string) (map[string]any, error) {
-	// Inject task-level constraints into the prompt for Hot-Multiplexing
+	// Inject task-level constraints into the prompt for Hot-Multiplexing using XML tags and CDATA.
+	// This follows Anthropic's best practices for clear delineation.
 	finalPrompt := prompt
 	if taskInstructions != "" {
-		finalPrompt = fmt.Sprintf("[%s]\n\n%s", taskInstructions, prompt)
+		finalPrompt = fmt.Sprintf("<task>\n<![CDATA[\n%s\n]]>\n</task>\n\n<user_input>\n<![CDATA[\n%s\n]]>\n</user_input>",
+			taskInstructions, prompt)
 	}
 
 	return map[string]any{

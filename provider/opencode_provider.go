@@ -176,10 +176,11 @@ func (p *OpenCodeProvider) BuildEnvVars(opts *ProviderSessionOptions) []string {
 // Note: OpenCode typically takes the prompt as a CLI argument, not stdin.
 // For multi-turn sessions, this method may be used differently.
 func (p *OpenCodeProvider) BuildInputMessage(prompt string, taskInstructions string) (map[string]any, error) {
-	// Inject task-level constraints
+	// Inject task-level constraints using XML tags and CDATA.
 	finalPrompt := prompt
 	if taskInstructions != "" {
-		finalPrompt = fmt.Sprintf("[%s]\n\n%s", taskInstructions, prompt)
+		finalPrompt = fmt.Sprintf("<task>\n<![CDATA[\n%s\n]]>\n</task>\n\n<user_input>\n<![CDATA[\n%s\n]]>\n</user_input>",
+			taskInstructions, prompt)
 	}
 
 	// OpenCode CLI takes prompt as argument, but we structure this
@@ -340,7 +341,7 @@ func (p *OpenCodeProvider) DetectTurnEnd(event *ProviderEvent) bool {
 		return false
 	}
 
-	if event.Type == EventTypeError {
+	if event.Type == EventTypeError || event.Type == EventTypeResult {
 		return true
 	}
 
@@ -395,7 +396,8 @@ func (p *OpenCodeProvider) GetHTTPAPIPort() int {
 func (p *OpenCodeProvider) BuildHTTPCommand(prompt string, taskInstructions string) string {
 	finalPrompt := prompt
 	if taskInstructions != "" {
-		finalPrompt = fmt.Sprintf("[%s]\n\n%s", taskInstructions, prompt)
+		finalPrompt = fmt.Sprintf("<task>\n<![CDATA[\n%s\n]]>\n</task>\n\n<user_input>\n<![CDATA[\n%s\n]]>\n</user_input>",
+			taskInstructions, prompt)
 	}
 	// Escape quotes for shell
 	return strings.ReplaceAll(finalPrompt, "\"", "\\\"")
