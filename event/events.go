@@ -56,9 +56,9 @@ type EventMeta struct {
 // This type is used by executors (DirectExecutor, ReActExecutor, PlanningExecutor)
 // and CCRunner to send detailed event metadata to the frontend.
 type EventWithMeta struct {
-	EventType string     // Event type (thinking, tool_use, tool_result, etc.)
-	EventData string     // Event data content
-	Meta      *EventMeta // Enhanced metadata (never nil when created via NewEventWithMeta)
+	EventType string     `json:"event_type"` // Event type (thinking, tool_use, tool_result, etc.)
+	EventData string     `json:"event_data"` // Event data content
+	Meta      *EventMeta `json:"meta"`       // Enhanced metadata (never nil when created via NewEventWithMeta)
 }
 
 // NewEventWithMeta creates a new EventWithMeta with guaranteed non-nil Meta.

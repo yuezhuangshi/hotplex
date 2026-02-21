@@ -46,14 +46,14 @@ ws.on("message", (rawData) => {
       break;
     case "thinking":
       console.log(
-        `\x1b[33m[AI] 🤔 Thinking: ${data.EventData || "Planning next steps..."}\x1b[0m`,
+        `\x1b[33m[AI] 🤔 Thinking: ${data.event_data || "Planning next steps..."}\x1b[0m`,
       );
       break;
     case "tool_use":
-      console.log(`\x1b[34m[Tool] 🛠️  Executing: ${data.EventData}\x1b[0m`);
+      console.log(`\x1b[34m[Tool] 🛠️  Executing: ${data.event_data}\x1b[0m`);
       break;
     case "answer":
-      process.stdout.write(`\x1b[37m${data.EventData}\x1b[0m`);
+      process.stdout.write(`\x1b[37m${data.event_data}\x1b[0m`);
       break;
     case "completed":
       console.log(`\n\n\x1b[32m[✓] Task Completed.\x1b[0m`);

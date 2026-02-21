@@ -8,20 +8,20 @@ import (
 // SessionStats collects session-level statistics for Geek/Evolution modes.
 type SessionStats struct {
 	mu                   sync.Mutex
-	SessionID            string          // Unique identifier for the session
-	StartTime            time.Time       // Timestamp when the session started
-	TotalDurationMs      int64           // Total duration of the session in milliseconds
-	ThinkingDurationMs   int64           // Total time spent in thinking phase in milliseconds
-	ToolDurationMs       int64           // Total time spent executing tools in milliseconds
-	GenerationDurationMs int64           // Total time spent generating text in milliseconds
-	InputTokens          int32           // Total input tokens consumed
-	OutputTokens         int32           // Total output tokens generated
-	CacheWriteTokens     int32           // Total tokens written to cache
-	CacheReadTokens      int32           // Total tokens read from cache
-	ToolCallCount        int32           // Number of tool calls made
-	ToolsUsed            map[string]bool // Set of unique tool names used
-	FilesModified        int32           // Number of files modified
-	FilePaths            []string        // List of paths of files modified
+	SessionID            string          `json:"session_id"`
+	StartTime            time.Time       `json:"start_time"`
+	TotalDurationMs      int64           `json:"total_duration_ms"`
+	ThinkingDurationMs   int64           `json:"thinking_duration_ms"`
+	ToolDurationMs       int64           `json:"tool_duration_ms"`
+	GenerationDurationMs int64           `json:"generation_duration_ms"`
+	InputTokens          int32           `json:"input_tokens"`
+	OutputTokens         int32           `json:"output_tokens"`
+	CacheWriteTokens     int32           `json:"cache_write_tokens"`
+	CacheReadTokens      int32           `json:"cache_read_tokens"`
+	ToolCallCount        int32           `json:"tool_call_count"`
+	ToolsUsed            map[string]bool `json:"tools_used"`
+	FilesModified        int32           `json:"files_modified"`
+	FilePaths            []string        `json:"file_paths"`
 	filePathsSet         map[string]bool // O(1) deduplication for file paths
 
 	// Current tool tracking
