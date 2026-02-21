@@ -16,6 +16,12 @@ This example demonstrates how to use the HotPlex Control Plane to bridge elite A
 into your production-grade Go application. It follows our "First Principle" by leveraging
 tools like Claude Code to provide advanced AI capabilities with millisecond latency,
 secure sandboxing, and full-duplex session management.
+
+Provider Support:
+HotPlex supports multiple AI CLI backends via the Provider interface.
+- If Provider is nil (default), ClaudeCodeProvider is used automatically
+- Custom providers can be created with hotplex.NewClaudeCodeProvider()
+- Future: OpenCodeProvider and other CLI adapters
 */
 func main() {
 	// Configure logging
@@ -25,6 +31,12 @@ func main() {
 
 	// 1. Initialize HotPlex Core Engine
 	// EngineOptions allows you to configure global behavior of the HotPlex instance.
+	//
+	// Provider Configuration (NEW in v0.2.0):
+	// - Provider: nil (default) -> uses ClaudeCodeProvider automatically
+	// - Provider: customProvider -> uses your configured provider
+	//
+	// For simple usage, you can omit Provider and it will use Claude Code CLI.
 	opts := hotplex.EngineOptions{
 		Timeout:   5 * time.Minute, // Maximum allowed duration for a single execution
 		Logger:    logger,          // Injected slog logger for structured observability
@@ -33,6 +45,8 @@ func main() {
 		// Security Context at Engine level
 		PermissionMode: "bypassPermissions",      // Set "default" for interactive mode
 		AllowedTools:   []string{"Bash", "Edit"}, // Only allow certain native tools
+
+		// Provider: nil, // Optional: nil uses default ClaudeCodeProvider
 	}
 
 	engine, err := hotplex.NewEngine(opts)
