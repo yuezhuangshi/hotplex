@@ -1,4 +1,4 @@
-package hotplex
+package engine
 
 import (
 	"context"
@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hrygo/hotplex/internal/engine"
+	intengine "github.com/hrygo/hotplex/internal/engine"
+	"github.com/hrygo/hotplex/types"
 )
 
 func TestEngine_createEventBridge(t *testing.T) {
@@ -17,7 +18,7 @@ func TestEngine_createEventBridge(t *testing.T) {
 		logger: logger,
 	}
 
-	cfg := &Config{
+	cfg := &types.Config{
 		WorkDir:   "/tmp",
 		SessionID: "test-session",
 	}
@@ -54,7 +55,7 @@ func TestEngine_createEventBridge_RawLine(t *testing.T) {
 		logger: logger,
 	}
 
-	cfg := &Config{
+	cfg := &types.Config{
 		WorkDir:   "/tmp",
 		SessionID: "test-session",
 	}
@@ -87,8 +88,8 @@ func TestEngine_createEventBridge_ResultMessage(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	// Create mock manager with session
-	mockMgr := &mockSessionManager{sessions: make(map[string]*engine.Session)}
-	mockMgr.sessions["test-session"] = engine.NewTestSession("test-session", engine.SessionStatusBusy)
+	mockMgr := &mockSessionManager{sessions: make(map[string]*intengine.Session)}
+	mockMgr.sessions["test-session"] = intengine.NewTestSession("test-session", intengine.SessionStatusBusy)
 
 	engine := &Engine{
 		opts:    EngineOptions{Namespace: "test"},
@@ -96,7 +97,7 @@ func TestEngine_createEventBridge_ResultMessage(t *testing.T) {
 		manager: mockMgr,
 	}
 
-	cfg := &Config{
+	cfg := &types.Config{
 		WorkDir:   "/tmp",
 		SessionID: "test-session",
 	}
@@ -115,10 +116,10 @@ func TestEngine_createEventBridge_ResultMessage(t *testing.T) {
 	cb := engine.createEventBridge(cfg, userCb, stats, doneChan)
 
 	// Test result message
-	msg := StreamMessage{
+	msg := types.StreamMessage{
 		Type:     "result",
 		Duration: 1000,
-		Usage: &UsageStats{
+		Usage: &types.UsageStats{
 			InputTokens:  100,
 			OutputTokens: 50,
 		},
@@ -149,7 +150,7 @@ func TestEngine_createEventBridge_SystemMessage(t *testing.T) {
 		logger: logger,
 	}
 
-	cfg := &Config{
+	cfg := &types.Config{
 		WorkDir:   "/tmp",
 		SessionID: "test-session",
 	}
@@ -166,7 +167,7 @@ func TestEngine_createEventBridge_SystemMessage(t *testing.T) {
 	cb := engine.createEventBridge(cfg, userCb, stats, doneChan)
 
 	// Test system message - should be silently ignored
-	msg := StreamMessage{Type: "system"}
+	msg := types.StreamMessage{Type: "system"}
 	err := cb("pre-parsed", msg)
 	if err != nil {
 		t.Errorf("system message callback error: %v", err)
@@ -192,7 +193,7 @@ func TestEngine_createEventBridge_NonStreamMessage(t *testing.T) {
 		logger: logger,
 	}
 
-	cfg := &Config{
+	cfg := &types.Config{
 		WorkDir:   "/tmp",
 		SessionID: "test-session",
 	}
@@ -208,10 +209,10 @@ func TestEngine_createEventBridge_NonStreamMessage(t *testing.T) {
 
 	cb := engine.createEventBridge(cfg, userCb, stats, doneChan)
 
-	// Test non-StreamMessage data (legacy path)
+	// Test non-types.StreamMessage data (legacy path)
 	err := cb("custom_event", "some data")
 	if err != nil {
-		t.Errorf("non-StreamMessage callback error: %v", err)
+		t.Errorf("non-types.StreamMessage callback error: %v", err)
 	}
 
 	if received != "custom_event" {
@@ -222,8 +223,8 @@ func TestEngine_createEventBridge_NonStreamMessage(t *testing.T) {
 func TestEngine_createEventBridge_WithCallback(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	mockMgr := &mockSessionManager{sessions: make(map[string]*engine.Session)}
-	mockMgr.sessions["test-session"] = engine.NewTestSession("test-session", engine.SessionStatusBusy)
+	mockMgr := &mockSessionManager{sessions: make(map[string]*intengine.Session)}
+	mockMgr.sessions["test-session"] = intengine.NewTestSession("test-session", intengine.SessionStatusBusy)
 
 	engine := &Engine{
 		opts:    EngineOptions{Namespace: "test"},
@@ -231,7 +232,7 @@ func TestEngine_createEventBridge_WithCallback(t *testing.T) {
 		manager: mockMgr,
 	}
 
-	cfg := &Config{
+	cfg := &types.Config{
 		WorkDir:   "/tmp",
 		SessionID: "test-session",
 	}
@@ -248,9 +249,9 @@ func TestEngine_createEventBridge_WithCallback(t *testing.T) {
 	cb := engine.createEventBridge(cfg, userCb, stats, doneChan)
 
 	// Test with a message that goes through dispatchCallback
-	msg := StreamMessage{
+	msg := types.StreamMessage{
 		Type: "thinking",
-		Content: []ContentBlock{
+		Content: []types.ContentBlock{
 			{Type: "text", Text: "thinking..."},
 		},
 	}
@@ -272,7 +273,7 @@ func TestEngine_createEventBridge_RawLineNotString(t *testing.T) {
 		logger: logger,
 	}
 
-	cfg := &Config{
+	cfg := &types.Config{
 		WorkDir:   "/tmp",
 		SessionID: "test-session",
 	}
@@ -297,7 +298,7 @@ func TestEngine_waitForSession(t *testing.T) {
 	}
 
 	t.Run("session ready", func(t *testing.T) {
-		sess := engine.NewTestSession("test", engine.SessionStatusReady)
+		sess := intengine.NewTestSession("test", intengine.SessionStatusReady)
 
 		ctx := context.Background()
 		err := eng.waitForSession(ctx, sess, "test-session")
@@ -307,7 +308,7 @@ func TestEngine_waitForSession(t *testing.T) {
 	})
 
 	t.Run("session busy", func(t *testing.T) {
-		sess := engine.NewTestSession("test", engine.SessionStatusBusy)
+		sess := intengine.NewTestSession("test", intengine.SessionStatusBusy)
 
 		ctx := context.Background()
 		err := eng.waitForSession(ctx, sess, "test-session")
@@ -317,7 +318,7 @@ func TestEngine_waitForSession(t *testing.T) {
 	})
 
 	t.Run("session dead", func(t *testing.T) {
-		sess := engine.NewTestSession("test", engine.SessionStatusDead)
+		sess := intengine.NewTestSession("test", intengine.SessionStatusDead)
 
 		ctx := context.Background()
 		err := eng.waitForSession(ctx, sess, "test-session")
@@ -327,7 +328,7 @@ func TestEngine_waitForSession(t *testing.T) {
 	})
 
 	t.Run("context cancelled", func(t *testing.T) {
-		sess := engine.NewTestSession("test", engine.SessionStatusStarting)
+		sess := intengine.NewTestSession("test", intengine.SessionStatusStarting)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel() // Cancel immediately
@@ -346,14 +347,14 @@ func TestEngine_waitForSession_StatusChange(t *testing.T) {
 		logger: logger,
 	}
 
-	sess := engine.NewTestSession("test", engine.SessionStatusStarting)
+	sess := intengine.NewTestSession("test", intengine.SessionStatusStarting)
 
 	ctx := context.Background()
 
 	// Send status change in goroutine
 	go func() {
 		time.Sleep(10 * time.Millisecond)
-		sess.SetStatus(engine.SessionStatusReady)
+		sess.SetStatus(intengine.SessionStatusReady)
 	}()
 
 	err := eng.waitForSession(ctx, sess, "test-session")

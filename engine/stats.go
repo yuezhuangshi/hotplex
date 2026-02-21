@@ -1,4 +1,4 @@
-package hotplex
+package engine
 
 import (
 	"sync"

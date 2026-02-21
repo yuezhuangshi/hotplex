@@ -1,4 +1,4 @@
-package hotplex
+package engine
 
 import (
 	"errors"
@@ -7,7 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hrygo/hotplex/internal/engine"
+	"github.com/hrygo/hotplex/event"
+	intengine "github.com/hrygo/hotplex/internal/engine"
+	"github.com/hrygo/hotplex/types"
 )
 
 // TestEngine_dispatchCallback tests the dispatchCallback method
@@ -21,7 +23,7 @@ func TestEngine_dispatchCallback(t *testing.T) {
 	stats := &SessionStats{SessionID: "test"}
 
 	t.Run("error message", func(t *testing.T) {
-		msg := StreamMessage{
+		msg := types.StreamMessage{
 			Type:  "error",
 			Error: "something went wrong",
 		}
@@ -41,7 +43,7 @@ func TestEngine_dispatchCallback(t *testing.T) {
 	})
 
 	t.Run("system message", func(t *testing.T) {
-		msg := StreamMessage{
+		msg := types.StreamMessage{
 			Type: "system",
 		}
 
@@ -59,7 +61,7 @@ func TestEngine_dispatchCallback(t *testing.T) {
 	})
 
 	t.Run("nil stats", func(t *testing.T) {
-		msg := StreamMessage{
+		msg := types.StreamMessage{
 			Type: "thinking",
 		}
 
@@ -84,9 +86,9 @@ func TestEngine_handleThinkingEvent(t *testing.T) {
 
 	stats := &SessionStats{SessionID: "test"}
 
-	msg := StreamMessage{
+	msg := types.StreamMessage{
 		Type: "thinking",
-		Content: []ContentBlock{
+		Content: []types.ContentBlock{
 			{Type: "text", Text: "thinking..."},
 		},
 	}
@@ -94,7 +96,7 @@ func TestEngine_handleThinkingEvent(t *testing.T) {
 	var received string
 	cb := func(eventType string, data any) error {
 		if eventType == "thinking" {
-			if event, ok := data.(*EventWithMeta); ok {
+			if event, ok := data.(*event.EventWithMeta); ok {
 				received = event.EventData
 			}
 		}
@@ -117,10 +119,10 @@ func TestEngine_handleToolUseEvent(t *testing.T) {
 	stats := &SessionStats{SessionID: "test"}
 
 	t.Run("with tool name", func(t *testing.T) {
-		msg := StreamMessage{
+		msg := types.StreamMessage{
 			Type: "tool_use",
 			Name: "bash",
-			Content: []ContentBlock{
+			Content: []types.ContentBlock{
 				{Type: "tool_use", ID: "tool-123"},
 			},
 		}
@@ -128,7 +130,7 @@ func TestEngine_handleToolUseEvent(t *testing.T) {
 		var received string
 		cb := func(eventType string, data any) error {
 			if eventType == "tool_use" {
-				if event, ok := data.(*EventWithMeta); ok {
+				if event, ok := data.(*event.EventWithMeta); ok {
 					received = event.EventData
 				}
 			}
@@ -142,7 +144,7 @@ func TestEngine_handleToolUseEvent(t *testing.T) {
 	})
 
 	t.Run("without tool name", func(t *testing.T) {
-		msg := StreamMessage{
+		msg := types.StreamMessage{
 			Type: "tool_use",
 			Name: "",
 		}
@@ -170,10 +172,10 @@ func TestEngine_handleToolResultEvent(t *testing.T) {
 	stats.RecordToolUse("bash", "tool-123")
 
 	t.Run("with output", func(t *testing.T) {
-		msg := StreamMessage{
+		msg := types.StreamMessage{
 			Type:   "tool_result",
 			Output: "command output",
-			Content: []ContentBlock{
+			Content: []types.ContentBlock{
 				{Type: "tool_result", ID: "tool-123"},
 			},
 		}
@@ -181,7 +183,7 @@ func TestEngine_handleToolResultEvent(t *testing.T) {
 		var received string
 		cb := func(eventType string, data any) error {
 			if eventType == "tool_result" {
-				if event, ok := data.(*EventWithMeta); ok {
+				if event, ok := data.(*event.EventWithMeta); ok {
 					received = event.EventData
 				}
 			}
@@ -195,7 +197,7 @@ func TestEngine_handleToolResultEvent(t *testing.T) {
 	})
 
 	t.Run("without output", func(t *testing.T) {
-		msg := StreamMessage{
+		msg := types.StreamMessage{
 			Type:   "tool_result",
 			Output: "",
 		}
@@ -222,9 +224,9 @@ func TestEngine_handleAssistantEvent(t *testing.T) {
 	stats := &SessionStats{SessionID: "test"}
 
 	t.Run("with text content", func(t *testing.T) {
-		msg := StreamMessage{
+		msg := types.StreamMessage{
 			Type: "assistant",
-			Content: []ContentBlock{
+			Content: []types.ContentBlock{
 				{Type: "text", Text: "Hello, world!"},
 			},
 		}
@@ -232,7 +234,7 @@ func TestEngine_handleAssistantEvent(t *testing.T) {
 		var received string
 		cb := func(eventType string, data any) error {
 			if eventType == "answer" {
-				if event, ok := data.(*EventWithMeta); ok {
+				if event, ok := data.(*event.EventWithMeta); ok {
 					received = event.EventData
 				}
 			}
@@ -246,9 +248,9 @@ func TestEngine_handleAssistantEvent(t *testing.T) {
 	})
 
 	t.Run("with tool_use content", func(t *testing.T) {
-		msg := StreamMessage{
+		msg := types.StreamMessage{
 			Type: "assistant",
-			Content: []ContentBlock{
+			Content: []types.ContentBlock{
 				{Type: "tool_use", Name: "bash", ID: "tool-456"},
 			},
 		}
@@ -256,7 +258,7 @@ func TestEngine_handleAssistantEvent(t *testing.T) {
 		var received string
 		cb := func(eventType string, data any) error {
 			if eventType == "tool_use" {
-				if event, ok := data.(*EventWithMeta); ok {
+				if event, ok := data.(*event.EventWithMeta); ok {
 					received = event.EventData
 				}
 			}
@@ -277,9 +279,9 @@ func TestEngine_handleDefaultEvent(t *testing.T) {
 		logger: logger,
 	}
 
-	msg := StreamMessage{
+	msg := types.StreamMessage{
 		Type: "unknown",
-		Content: []ContentBlock{
+		Content: []types.ContentBlock{
 			{Type: "text", Text: "some text"},
 		},
 	}
@@ -307,9 +309,9 @@ func TestEngine_handleUserEvent(t *testing.T) {
 	stats.RecordToolUse("bash", "tool-789")
 
 	t.Run("with tool_result", func(t *testing.T) {
-		msg := StreamMessage{
+		msg := types.StreamMessage{
 			Type: "user",
-			Content: []ContentBlock{
+			Content: []types.ContentBlock{
 				{Type: "tool_result", Content: "result content"},
 			},
 		}
@@ -317,7 +319,7 @@ func TestEngine_handleUserEvent(t *testing.T) {
 		var received string
 		cb := func(eventType string, data any) error {
 			if eventType == "tool_result" {
-				if event, ok := data.(*EventWithMeta); ok {
+				if event, ok := data.(*event.EventWithMeta); ok {
 					received = event.EventData
 				}
 			}
@@ -331,9 +333,9 @@ func TestEngine_handleUserEvent(t *testing.T) {
 	})
 
 	t.Run("without tool_result", func(t *testing.T) {
-		msg := StreamMessage{
+		msg := types.StreamMessage{
 			Type: "user",
-			Content: []ContentBlock{
+			Content: []types.ContentBlock{
 				{Type: "text", Text: "not a tool result"},
 			},
 		}
@@ -355,8 +357,8 @@ func TestEngine_handleStreamRawLine(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	// Create a mock manager with session
-	mockMgr := &mockSessionManager{sessions: make(map[string]*engine.Session)}
-	mockMgr.sessions["test-session"] = engine.NewTestSession("test-session", engine.SessionStatusBusy)
+	mockMgr := &mockSessionManager{sessions: make(map[string]*intengine.Session)}
+	mockMgr.sessions["test-session"] = intengine.NewTestSession("test-session", intengine.SessionStatusBusy)
 
 	engine := &Engine{
 		opts:    EngineOptions{Namespace: "test"},
@@ -367,7 +369,7 @@ func TestEngine_handleStreamRawLine(t *testing.T) {
 	stats := &SessionStats{SessionID: "test-session"}
 	doneChan := make(chan struct{})
 
-	cfg := &Config{
+	cfg := &types.Config{
 		WorkDir:   "/tmp",
 		SessionID: "test-session",
 	}
@@ -443,8 +445,8 @@ func TestEngine_handleResultMessage(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	// Create a mock manager for testing
-	mockMgr := &mockSessionManager{sessions: make(map[string]*engine.Session)}
-	mockMgr.sessions["test-session"] = engine.NewTestSession("test-session", engine.SessionStatusBusy)
+	mockMgr := &mockSessionManager{sessions: make(map[string]*intengine.Session)}
+	mockMgr.sessions["test-session"] = intengine.NewTestSession("test-session", intengine.SessionStatusBusy)
 
 	engine := &Engine{
 		opts:    EngineOptions{Namespace: "test"},
@@ -458,16 +460,16 @@ func TestEngine_handleResultMessage(t *testing.T) {
 		ToolsUsed: map[string]bool{"bash": true},
 	}
 
-	cfg := &Config{
+	cfg := &types.Config{
 		WorkDir:   "/tmp",
 		SessionID: "test-session",
 	}
 
 	t.Run("with usage stats", func(t *testing.T) {
-		msg := StreamMessage{
+		msg := types.StreamMessage{
 			Type:     "result",
 			Duration: 1000,
-			Usage: &UsageStats{
+			Usage: &types.UsageStats{
 				InputTokens:  100,
 				OutputTokens: 50,
 			},
@@ -495,7 +497,7 @@ func TestEngine_handleResultMessage(t *testing.T) {
 	})
 
 	t.Run("with error", func(t *testing.T) {
-		msg := StreamMessage{
+		msg := types.StreamMessage{
 			Type:     "result",
 			IsError:  true,
 			Error:    "something went wrong",
@@ -505,7 +507,7 @@ func TestEngine_handleResultMessage(t *testing.T) {
 		var errorMsg string
 		cb := func(eventType string, data any) error {
 			if eventType == "session_stats" {
-				if ssd, ok := data.(*SessionStatsData); ok {
+				if ssd, ok := data.(*event.SessionStatsData); ok {
 					errorMsg = ssd.ErrorMessage
 				}
 			}

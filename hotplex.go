@@ -1,0 +1,74 @@
+// Package hotplex provides a production-ready execution environment for AI CLI agents.
+package hotplex
+
+import (
+	"github.com/hrygo/hotplex/engine"
+	"github.com/hrygo/hotplex/event"
+	"github.com/hrygo/hotplex/types"
+)
+
+// ===== Engine Types =====
+
+// Engine is the core Control Plane for AI CLI agent integration.
+type Engine = engine.Engine
+
+// EngineOptions defines the configuration parameters for initializing a new HotPlex Engine.
+type EngineOptions = engine.EngineOptions
+
+// SessionStats collects session-level statistics.
+type SessionStats = engine.SessionStats
+
+// ===== Event Types =====
+
+// Callback is the function signature for event streaming.
+type Callback = event.Callback
+
+// EventMeta contains metadata for stream events.
+type EventMeta = event.EventMeta
+
+// EventWithMeta wraps event data with metadata.
+type EventWithMeta = event.EventWithMeta
+
+// SessionStatsData contains comprehensive session statistics.
+type SessionStatsData = event.SessionStatsData
+
+// ===== Base Types =====
+
+// Config represents the configuration for a single HotPlex execution session.
+type Config = types.Config
+
+// StreamMessage represents a message from the CLI stream.
+type StreamMessage = types.StreamMessage
+
+// ContentBlock represents a content block in a message.
+type ContentBlock = types.ContentBlock
+
+// UsageStats represents token usage statistics.
+type UsageStats = types.UsageStats
+
+// AssistantMessage represents a message from the assistant.
+type AssistantMessage = types.AssistantMessage
+
+// ===== Errors =====
+
+var (
+	// ErrDangerBlocked is returned when a dangerous operation is blocked.
+	ErrDangerBlocked = types.ErrDangerBlocked
+	// ErrInvalidConfig is returned when the configuration is invalid.
+	ErrInvalidConfig = types.ErrInvalidConfig
+)
+
+// ===== Functions =====
+
+var (
+	// NewEngine creates a new HotPlex Engine instance.
+	NewEngine = engine.NewEngine
+	// WrapSafe wraps a callback to make it safe for concurrent use.
+	WrapSafe = event.WrapSafe
+	// NewEventWithMeta creates a new EventWithMeta.
+	NewEventWithMeta = event.NewEventWithMeta
+	// TruncateString truncates a string to the given length.
+	TruncateString = types.TruncateString
+	// SummarizeInput creates a summary of input data.
+	SummarizeInput = types.SummarizeInput
+)

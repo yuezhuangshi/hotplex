@@ -1,4 +1,4 @@
-package hotplex
+package engine
 
 import (
 	"context"
@@ -12,14 +12,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hrygo/hotplex/internal/engine"
+	"github.com/hrygo/hotplex/event"
+	intengine "github.com/hrygo/hotplex/internal/engine"
 	"github.com/hrygo/hotplex/internal/security"
+	"github.com/hrygo/hotplex/types"
 )
 
 // EngineOptions defines the configuration parameters for initializing a new HotPlex Engine.
 // It allows customization of timeouts, logging, and foundational security boundaries
 // that apply to all sessions managed by this engine instance.
-type EngineOptions = engine.EngineOptions
+type EngineOptions = intengine.EngineOptions
 
 // Engine is the core Control Plane for AI CLI agent integration.
 // Configured as a long-lived Singleton, it transforms local CLI tools into production-ready
@@ -29,7 +31,7 @@ type Engine struct {
 	opts           EngineOptions
 	cliPath        string
 	logger         *slog.Logger
-	manager        engine.SessionManager
+	manager        intengine.SessionManager
 	dangerDetector *security.Detector
 	// Session stats for the last execution (thread-safe)
 	statsMu      sync.RWMutex
@@ -37,7 +39,7 @@ type Engine struct {
 }
 
 // NewEngine creates a new HotPlex Engine instance.
-func NewEngine(options EngineOptions) (HotPlexClient, error) {
+func NewEngine(options EngineOptions) (*Engine, error) {
 	cliPath, err := exec.LookPath("claude")
 	if err != nil {
 		return nil, fmt.Errorf("claude Code CLI not found: %w", err)
@@ -69,7 +71,7 @@ func NewEngine(options EngineOptions) (HotPlexClient, error) {
 		opts:           options,
 		cliPath:        cliPath,
 		logger:         logger,
-		manager:        engine.NewSessionPool(logger, options.IdleTimeout, options, cliPath),
+		manager:        intengine.NewSessionPool(logger, options.IdleTimeout, options, cliPath),
 		dangerDetector: dangerDetector,
 	}, nil
 }
@@ -87,7 +89,7 @@ func (r *Engine) Close() error {
 }
 
 // Execute runs Claude Code CLI with the given configuration and streams
-func (r *Engine) Execute(ctx context.Context, cfg *Config, prompt string, callback Callback) error {
+func (r *Engine) Execute(ctx context.Context, cfg *types.Config, prompt string, callback event.Callback) error {
 	// Security check: Detect dangerous operations before execution
 	// All prompts now undergo WAF checking regardless of origin
 	if dangerEvent := r.dangerDetector.CheckInput(prompt); dangerEvent != nil {
@@ -97,10 +99,10 @@ func (r *Engine) Execute(ctx context.Context, cfg *Config, prompt string, callba
 			"level", dangerEvent.Level,
 		)
 		// Send danger block event to client (non-critical - error already being returned)
-		if callbackSafe := WrapSafe(r.logger, callback); callbackSafe != nil {
+		if callbackSafe := event.WrapSafe(r.logger, callback); callbackSafe != nil {
 			_ = callbackSafe("danger_block", dangerEvent)
 		}
-		return ErrDangerBlocked
+		return types.ErrDangerBlocked
 	}
 
 	// Validate configuration
@@ -120,12 +122,12 @@ func (r *Engine) Execute(ctx context.Context, cfg *Config, prompt string, callba
 	}
 
 	// Send thinking event
-	if callbackSafe := WrapSafe(r.logger, callback); callbackSafe != nil {
-		meta := &EventMeta{
+	if callbackSafe := event.WrapSafe(r.logger, callback); callbackSafe != nil {
+		meta := &event.EventMeta{
 			Status:          "running",
 			TotalDurationMs: 0,
 		}
-		_ = callbackSafe("thinking", NewEventWithMeta("thinking", "ai.thinking", meta))
+		_ = callbackSafe("thinking", event.NewEventWithMeta("thinking", "ai.thinking", meta))
 	}
 
 	r.logger.Info("Engine: starting execution pipeline",
@@ -178,12 +180,12 @@ func (r *Engine) GetSessionStats() *SessionStats {
 }
 
 // ValidateConfig validates the Config.
-func (r *Engine) ValidateConfig(cfg *Config) error {
+func (r *Engine) ValidateConfig(cfg *types.Config) error {
 	if cfg.WorkDir == "" {
-		return fmt.Errorf("%w: work_dir is required", ErrInvalidConfig)
+		return fmt.Errorf("%w: work_dir is required", types.ErrInvalidConfig)
 	}
 	if cfg.SessionID == "" {
-		return fmt.Errorf("%w: session_id is required", ErrInvalidConfig)
+		return fmt.Errorf("%w: session_id is required", types.ErrInvalidConfig)
 	}
 
 	// Security: Validate WorkDir to prevent path traversal attacks (#8)
@@ -196,7 +198,7 @@ func (r *Engine) ValidateConfig(cfg *Config) error {
 		r.logger.Warn("Path traversal attempt blocked",
 			"work_dir", cfg.WorkDir,
 			"cleaned_path", cleanPath)
-		return fmt.Errorf("%w: work_dir contains path traversal sequence", ErrInvalidConfig)
+		return fmt.Errorf("%w: work_dir contains path traversal sequence", types.ErrInvalidConfig)
 	}
 
 	// Update config with cleaned path
@@ -210,13 +212,13 @@ func (r *Engine) ValidateConfig(cfg *Config) error {
 // System prompt is injected only at cold startup; subsequent turns send user messages via stdin.
 func (r *Engine) executeWithMultiplex(
 	ctx context.Context,
-	cfg *Config,
+	cfg *types.Config,
 	prompt string,
-	callback Callback,
+	callback event.Callback,
 	stats *SessionStats,
 ) error {
 	// Convert to engine session config
-	sessionCfg := engine.SessionConfig{
+	sessionCfg := intengine.SessionConfig{
 		WorkDir: cfg.WorkDir,
 	}
 
@@ -238,7 +240,7 @@ func (r *Engine) executeWithMultiplex(
 	// Create doneChan for this turn
 	doneChan := make(chan struct{})
 
-	sess.SetCallback(engine.Callback(r.createEventBridge(cfg, callback, stats, doneChan)))
+	sess.SetCallback(intengine.Callback(r.createEventBridge(cfg, callback, stats, doneChan)))
 
 	// Inject Task-level constraints into the prompt for Hot-Multiplexing
 	finalPrompt := prompt
@@ -277,13 +279,13 @@ func (r *Engine) executeWithMultiplex(
 	}
 }
 
-func (r *Engine) waitForSession(ctx context.Context, sess *engine.Session, sessionID string) error {
+func (r *Engine) waitForSession(ctx context.Context, sess *intengine.Session, sessionID string) error {
 	for {
 		status := sess.GetStatus()
-		if status == engine.SessionStatusReady || status == engine.SessionStatusBusy {
+		if status == intengine.SessionStatusReady || status == intengine.SessionStatusBusy {
 			return nil
 		}
-		if status == engine.SessionStatusDead {
+		if status == intengine.SessionStatusDead {
 			return fmt.Errorf("session %s is dead, cannot execute", sessionID)
 		}
 
@@ -291,17 +293,17 @@ func (r *Engine) waitForSession(ctx context.Context, sess *engine.Session, sessi
 		case <-ctx.Done():
 			return ctx.Err()
 		case s := <-sess.GetStatusChange():
-			if s == engine.SessionStatusReady || s == engine.SessionStatusBusy {
+			if s == intengine.SessionStatusReady || s == intengine.SessionStatusBusy {
 				return nil
 			}
-			if s == engine.SessionStatusDead {
+			if s == intengine.SessionStatusDead {
 				return fmt.Errorf("session %s is dead, cannot execute", sessionID)
 			}
 		}
 	}
 }
 
-func (r *Engine) createEventBridge(cfg *Config, callback Callback, stats *SessionStats, doneChan chan struct{}) Callback {
+func (r *Engine) createEventBridge(cfg *types.Config, callback event.Callback, stats *SessionStats, doneChan chan struct{}) event.Callback {
 	return func(eventType string, data any) error {
 		if eventType == "runner_exit" {
 			closeDoneChan(doneChan)
@@ -317,9 +319,9 @@ func (r *Engine) createEventBridge(cfg *Config, callback Callback, stats *Sessio
 		}
 
 		// Legacy path for pre-parsed
-		msg, ok := data.(StreamMessage)
+		msg, ok := data.(types.StreamMessage)
 		if !ok {
-			if callbackSafe := WrapSafe(r.logger, callback); callbackSafe != nil {
+			if callbackSafe := event.WrapSafe(r.logger, callback); callbackSafe != nil {
 				_ = callbackSafe(eventType, data)
 			}
 			return nil
@@ -342,10 +344,10 @@ func (r *Engine) createEventBridge(cfg *Config, callback Callback, stats *Sessio
 	}
 }
 
-func (r *Engine) handleStreamRawLine(line string, cfg *Config, stats *SessionStats, callback Callback, doneChan chan struct{}) error {
-	var msg StreamMessage
+func (r *Engine) handleStreamRawLine(line string, cfg *types.Config, stats *SessionStats, callback event.Callback, doneChan chan struct{}) error {
+	var msg types.StreamMessage
 	if err := json.Unmarshal([]byte(line), &msg); err != nil {
-		if callbackSafe := WrapSafe(r.logger, callback); callbackSafe != nil {
+		if callbackSafe := event.WrapSafe(r.logger, callback); callbackSafe != nil {
 			_ = callbackSafe("answer", line)
 		}
 		return nil
@@ -381,7 +383,7 @@ func closeDoneChan(doneChan chan struct{}) {
 
 // handleResultMessage processes the result message from CLI, extracts statistics,
 // and sends session_stats event to frontend.
-func (r *Engine) handleResultMessage(msg StreamMessage, stats *SessionStats, cfg *Config, callback Callback) {
+func (r *Engine) handleResultMessage(msg types.StreamMessage, stats *SessionStats, cfg *types.Config, callback event.Callback) {
 	stats.mu.Lock()
 	defer stats.mu.Unlock()
 
@@ -432,8 +434,8 @@ func (r *Engine) handleResultMessage(msg StreamMessage, stats *SessionStats, cfg
 
 	// Send session_stats event to frontend (non-critical)
 	if callback != nil {
-		callbackSafe := WrapSafe(r.logger, callback)
-		_ = callbackSafe("session_stats", &SessionStatsData{
+		callbackSafe := event.WrapSafe(r.logger, callback)
+		_ = callbackSafe("session_stats", &event.SessionStatsData{
 			SessionID:            cfg.SessionID,
 			StartTime:            stats.StartTime.Unix(),
 			EndTime:              time.Now().Unix(),
@@ -460,7 +462,7 @@ func (r *Engine) handleResultMessage(msg StreamMessage, stats *SessionStats, cfg
 	// Turn is done, Session is now Ready for next input
 	// Find the session in manager to set it to Ready
 	if sess, ok := r.manager.GetSession(cfg.SessionID); ok {
-		sess.SetStatus(engine.SessionStatusReady)
+		sess.SetStatus(intengine.SessionStatusReady)
 	}
 }
 
@@ -469,7 +471,7 @@ func (r *Engine) handleResultMessage(msg StreamMessage, stats *SessionStats, cfg
 // 1. Return quickly (< 5 seconds) to avoid blocking stream processing
 // 2. NOT call back into Session/Engine methods (risk of deadlock)
 // 3. Be safe for concurrent invocation from multiple goroutines
-func (r *Engine) dispatchCallback(msg StreamMessage, callback Callback, stats *SessionStats) error {
+func (r *Engine) dispatchCallback(msg types.StreamMessage, callback event.Callback, stats *SessionStats) error {
 	if stats == nil {
 		r.logger.Debug("dispatchCallback: stats is nil, skipping", "type", msg.Type, "subtype", msg.Subtype)
 		return nil
@@ -500,13 +502,13 @@ func (r *Engine) dispatchCallback(msg StreamMessage, callback Callback, stats *S
 	return nil
 }
 
-func (r *Engine) handleThinkingEvent(msg StreamMessage, callback Callback, stats *SessionStats, totalDur int64) error {
+func (r *Engine) handleThinkingEvent(msg types.StreamMessage, callback event.Callback, stats *SessionStats, totalDur int64) error {
 	stats.StartThinking()
 	defer stats.EndThinking()
 	for _, block := range msg.GetContentBlocks() {
 		if block.Type == "text" && block.Text != "" {
-			meta := &EventMeta{Status: "running", TotalDurationMs: totalDur}
-			if err := callback("thinking", NewEventWithMeta("thinking", block.Text, meta)); err != nil {
+			meta := &event.EventMeta{Status: "running", TotalDurationMs: totalDur}
+			if err := callback("thinking", event.NewEventWithMeta("thinking", block.Text, meta)); err != nil {
 				return err
 			}
 		}
@@ -514,7 +516,7 @@ func (r *Engine) handleThinkingEvent(msg StreamMessage, callback Callback, stats
 	return nil
 }
 
-func (r *Engine) handleToolUseEvent(msg StreamMessage, callback Callback, stats *SessionStats, totalDur int64) error {
+func (r *Engine) handleToolUseEvent(msg types.StreamMessage, callback event.Callback, stats *SessionStats, totalDur int64) error {
 	stats.EndThinking()
 	if msg.Name == "" {
 		return nil
@@ -525,7 +527,7 @@ func (r *Engine) handleToolUseEvent(msg StreamMessage, callback Callback, stats 
 		if block.Type == "tool_use" {
 			toolID = block.ID
 			if block.Input != nil {
-				inputSummary = SummarizeInput(block.Input)
+				inputSummary = types.SummarizeInput(block.Input)
 				if msg.Name == "Write" || msg.Name == "Edit" || msg.Name == "WriteFile" || msg.Name == "EditFile" {
 					if path, ok := block.Input["path"].(string); ok {
 						filePath = path
@@ -539,7 +541,7 @@ func (r *Engine) handleToolUseEvent(msg StreamMessage, callback Callback, stats 
 		stats.RecordFileModification(filePath)
 	}
 
-	meta := &EventMeta{
+	meta := &event.EventMeta{
 		ToolName:        msg.Name,
 		ToolID:          toolID,
 		Status:          "running",
@@ -547,10 +549,10 @@ func (r *Engine) handleToolUseEvent(msg StreamMessage, callback Callback, stats 
 		InputSummary:    inputSummary,
 	}
 	r.logger.Debug("Engine: sending tool_use event", "tool_name", msg.Name, "tool_id", toolID)
-	return callback("tool_use", NewEventWithMeta("tool_use", msg.Name, meta))
+	return callback("tool_use", event.NewEventWithMeta("tool_use", msg.Name, meta))
 }
 
-func (r *Engine) handleToolResultEvent(msg StreamMessage, callback Callback, stats *SessionStats, totalDur int64) error {
+func (r *Engine) handleToolResultEvent(msg types.StreamMessage, callback event.Callback, stats *SessionStats, totalDur int64) error {
 	if msg.Output == "" {
 		return nil
 	}
@@ -565,26 +567,26 @@ func (r *Engine) handleToolResultEvent(msg StreamMessage, callback Callback, sta
 		}
 	}
 
-	meta := &EventMeta{
+	meta := &event.EventMeta{
 		ToolName:        toolName,
 		ToolID:          toolID,
 		Status:          "success",
 		DurationMs:      durationMs,
 		TotalDurationMs: totalDur,
-		OutputSummary:   TruncateString(msg.Output, 500),
+		OutputSummary:   types.TruncateString(msg.Output, 500),
 	}
 	r.logger.Debug("Engine: sending tool_result event", "tool_name", toolName, "tool_id", toolID, "duration_ms", durationMs)
-	return callback("tool_result", NewEventWithMeta("tool_result", msg.Output, meta))
+	return callback("tool_result", event.NewEventWithMeta("tool_result", msg.Output, meta))
 }
 
-func (r *Engine) handleAssistantEvent(msg StreamMessage, callback Callback, stats *SessionStats, totalDur int64) error {
+func (r *Engine) handleAssistantEvent(msg types.StreamMessage, callback event.Callback, stats *SessionStats, totalDur int64) error {
 	r.logger.Debug("dispatchCallback: processing assistant message", "type", msg.Type, "blocks_count", len(msg.GetContentBlocks()))
 	stats.EndThinking()
 	stats.StartGeneration()
 
 	for _, block := range msg.GetContentBlocks() {
 		if block.Type == "text" && block.Text != "" {
-			if err := callback("answer", NewEventWithMeta("answer", block.Text, &EventMeta{TotalDurationMs: totalDur})); err != nil {
+			if err := callback("answer", event.NewEventWithMeta("answer", block.Text, &event.EventMeta{TotalDurationMs: totalDur})); err != nil {
 				return err
 			}
 		} else if block.Type == "tool_use" && block.Name != "" {
@@ -599,14 +601,14 @@ func (r *Engine) handleAssistantEvent(msg StreamMessage, callback Callback, stat
 				}
 			}
 
-			meta := &EventMeta{
+			meta := &event.EventMeta{
 				ToolName:        block.Name,
 				ToolID:          block.ID,
 				Status:          "running",
 				TotalDurationMs: totalDur,
-				InputSummary:    SummarizeInput(block.Input),
+				InputSummary:    types.SummarizeInput(block.Input),
 			}
-			if err := callback("tool_use", NewEventWithMeta("tool_use", block.Name, meta)); err != nil {
+			if err := callback("tool_use", event.NewEventWithMeta("tool_use", block.Name, meta)); err != nil {
 				return err
 			}
 		}
@@ -614,36 +616,36 @@ func (r *Engine) handleAssistantEvent(msg StreamMessage, callback Callback, stat
 	return nil
 }
 
-func (r *Engine) handleUserEvent(msg StreamMessage, callback Callback, stats *SessionStats, totalDur int64) error {
+func (r *Engine) handleUserEvent(msg types.StreamMessage, callback event.Callback, stats *SessionStats, totalDur int64) error {
 	for _, block := range msg.GetContentBlocks() {
 		if block.Type != "tool_result" {
 			continue
 		}
 		durationMs := stats.RecordToolResult()
 		toolID := block.GetUnifiedToolID()
-		meta := &EventMeta{
+		meta := &event.EventMeta{
 			ToolID:          toolID,
 			ToolName:        block.Name,
 			Status:          "success",
 			DurationMs:      durationMs,
 			TotalDurationMs: totalDur,
-			OutputSummary:   TruncateString(block.Content, 500),
+			OutputSummary:   types.TruncateString(block.Content, 500),
 		}
 		r.logger.Debug("Engine: sending tool_result event from user message", "tool_name", block.Name, "tool_id", toolID, "duration_ms", durationMs)
-		if err := callback("tool_result", NewEventWithMeta("tool_result", block.Content, meta)); err != nil {
+		if err := callback("tool_result", event.NewEventWithMeta("tool_result", block.Content, meta)); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (r *Engine) handleDefaultEvent(msg StreamMessage, callback Callback, totalDur int64) error {
+func (r *Engine) handleDefaultEvent(msg types.StreamMessage, callback event.Callback, totalDur int64) error {
 	r.logger.Warn("Engine: unknown message type", "type", msg.Type, "role", msg.Role)
-	callbackSafe := WrapSafe(r.logger, callback)
+	callbackSafe := event.WrapSafe(r.logger, callback)
 	for _, block := range msg.GetContentBlocks() {
 		if block.Type == "text" && block.Text != "" {
 			if callbackSafe != nil {
-				_ = callbackSafe("answer", NewEventWithMeta("answer", block.Text, &EventMeta{TotalDurationMs: totalDur}))
+				_ = callbackSafe("answer", event.NewEventWithMeta("answer", block.Text, &event.EventMeta{TotalDurationMs: totalDur}))
 			}
 		}
 	}

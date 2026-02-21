@@ -1,4 +1,4 @@
-package hotplex
+package engine
 
 import (
 	"context"
@@ -8,8 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hrygo/hotplex/internal/engine"
+	intengine "github.com/hrygo/hotplex/internal/engine"
 	"github.com/hrygo/hotplex/internal/security"
+	"github.com/hrygo/hotplex/types"
 )
 
 func TestEngine_ValidateConfig(t *testing.T) {
@@ -22,41 +23,41 @@ func TestEngine_ValidateConfig(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		config    *Config
+		config    *types.Config
 		wantErr   bool
 		errSubstr string
 	}{
 		{
 			name:    "Valid config",
-			config:  &Config{WorkDir: "/tmp", SessionID: "test-session"},
+			config:  &types.Config{WorkDir: "/tmp", SessionID: "test-session"},
 			wantErr: false,
 		},
 		{
 			name:      "Missing WorkDir",
-			config:    &Config{SessionID: "test-session"},
+			config:    &types.Config{SessionID: "test-session"},
 			wantErr:   true,
 			errSubstr: "work_dir is required",
 		},
 		{
 			name:      "Missing SessionID",
-			config:    &Config{WorkDir: "/tmp"},
+			config:    &types.Config{WorkDir: "/tmp"},
 			wantErr:   true,
 			errSubstr: "session_id is required",
 		},
 		{
 			name:      "Path traversal with ..",
-			config:    &Config{WorkDir: "/tmp/../etc", SessionID: "test-session"},
+			config:    &types.Config{WorkDir: "/tmp/../etc", SessionID: "test-session"},
 			wantErr:   true,
 			errSubstr: "path traversal",
 		},
 		{
 			name:    "Valid path with . (current dir)",
-			config:  &Config{WorkDir: ".", SessionID: "test-session"},
+			config:  &types.Config{WorkDir: ".", SessionID: "test-session"},
 			wantErr: false,
 		},
 		{
 			name:    "Valid nested path",
-			config:  &Config{WorkDir: "/tmp/hotplex/sessions/test", SessionID: "test-session"},
+			config:  &types.Config{WorkDir: "/tmp/hotplex/sessions/test", SessionID: "test-session"},
 			wantErr: false,
 		},
 	}
@@ -88,7 +89,7 @@ func TestEngine_ValidateConfig_CleansPath(t *testing.T) {
 	}
 
 	// Test that path gets cleaned
-	config := &Config{WorkDir: "/tmp/./hotplex//sessions/", SessionID: "test"}
+	config := &types.Config{WorkDir: "/tmp/./hotplex//sessions/", SessionID: "test"}
 	err := engine.ValidateConfig(config)
 	if err != nil {
 		t.Fatalf("ValidateConfig() unexpected error: %v", err)
@@ -123,11 +124,11 @@ func TestEngine_Execute_DangerBlocked(t *testing.T) {
 
 	// Dangerous prompt should be blocked before any execution
 	ctx := context.Background()
-	cfg := &Config{WorkDir: "/tmp", SessionID: "test-session"}
+	cfg := &types.Config{WorkDir: "/tmp", SessionID: "test-session"}
 
 	err := engine.Execute(ctx, cfg, "rm -rf /", nil)
-	if err != ErrDangerBlocked {
-		t.Errorf("Execute() with dangerous prompt: got err=%v, want ErrDangerBlocked", err)
+	if err != types.ErrDangerBlocked {
+		t.Errorf("Execute() with dangerous prompt: got err=%v, want types.ErrDangerBlocked", err)
 	}
 }
 
@@ -142,13 +143,13 @@ func TestEngine_Execute_InvalidConfig(t *testing.T) {
 	ctx := context.Background()
 
 	// Missing WorkDir
-	err := engine.Execute(ctx, &Config{SessionID: "test"}, "safe prompt", nil)
+	err := engine.Execute(ctx, &types.Config{SessionID: "test"}, "safe prompt", nil)
 	if err == nil {
 		t.Error("Execute() with missing WorkDir should fail")
 	}
 
 	// Missing SessionID
-	err = engine.Execute(ctx, &Config{WorkDir: "/tmp"}, "safe prompt", nil)
+	err = engine.Execute(ctx, &types.Config{WorkDir: "/tmp"}, "safe prompt", nil)
 	if err == nil {
 		t.Error("Execute() with missing SessionID should fail")
 	}
@@ -163,7 +164,7 @@ func TestEngine_Execute_DangerBlockEvent(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	cfg := &Config{WorkDir: "/tmp", SessionID: "test"}
+	cfg := &types.Config{WorkDir: "/tmp", SessionID: "test"}
 
 	var dangerBlockReceived bool
 	cb := func(eventType string, data any) error {
@@ -174,8 +175,8 @@ func TestEngine_Execute_DangerBlockEvent(t *testing.T) {
 	}
 
 	err := engine.Execute(ctx, cfg, "rm -rf /", cb)
-	if err != ErrDangerBlocked {
-		t.Errorf("Execute() error = %v, want ErrDangerBlocked", err)
+	if err != types.ErrDangerBlocked {
+		t.Errorf("Execute() error = %v, want types.ErrDangerBlocked", err)
 	}
 	if !dangerBlockReceived {
 		t.Error("danger_block event should be sent")
@@ -196,7 +197,7 @@ func TestEngine_Execute_ThinkingEvent(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	cfg := &Config{WorkDir: "/tmp", SessionID: "test"}
+	cfg := &types.Config{WorkDir: "/tmp", SessionID: "test"}
 
 	var thinkingReceived bool
 	cb := func(eventType string, data any) error {
@@ -226,7 +227,7 @@ func TestEngine_Execute_MkdirAllFailure(t *testing.T) {
 
 	// Try to create a directory in a path that requires permission
 	// This test may pass if running as root, so we use an invalid path
-	cfg := &Config{WorkDir: "/nonexistent\x00invalid/path", SessionID: "test"}
+	cfg := &types.Config{WorkDir: "/nonexistent\x00invalid/path", SessionID: "test"}
 
 	err := engine.Execute(ctx, cfg, "safe prompt", nil)
 	if err == nil {
@@ -237,11 +238,11 @@ func TestEngine_Execute_MkdirAllFailure(t *testing.T) {
 // mockFailingSessionManager always returns error on GetOrCreateSession
 type mockFailingSessionManager struct{}
 
-func (m *mockFailingSessionManager) GetOrCreateSession(ctx context.Context, sessionID string, cfg engine.SessionConfig) (*engine.Session, error) {
+func (m *mockFailingSessionManager) GetOrCreateSession(ctx context.Context, sessionID string, cfg intengine.SessionConfig) (*intengine.Session, error) {
 	return nil, fmt.Errorf("mock error: session creation failed")
 }
 
-func (m *mockFailingSessionManager) GetSession(sessionID string) (*engine.Session, bool) {
+func (m *mockFailingSessionManager) GetSession(sessionID string) (*intengine.Session, bool) {
 	return nil, false
 }
 
@@ -249,7 +250,7 @@ func (m *mockFailingSessionManager) TerminateSession(sessionID string) error {
 	return nil
 }
 
-func (m *mockFailingSessionManager) ListActiveSessions() []*engine.Session {
+func (m *mockFailingSessionManager) ListActiveSessions() []*intengine.Session {
 	return nil
 }
 
@@ -259,7 +260,7 @@ func TestEngine_StopSession(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	// Create engine with a mock manager
-	mockManager := &mockSessionManager{sessions: make(map[string]*engine.Session)}
+	mockManager := &mockSessionManager{sessions: make(map[string]*intengine.Session)}
 	engine := &Engine{
 		opts:    EngineOptions{Namespace: "test"},
 		logger:  logger,
@@ -310,17 +311,17 @@ func TestEngine_DangerDetectorMethods(t *testing.T) {
 
 // mockSessionManager for testing
 type mockSessionManager struct {
-	sessions map[string]*engine.Session
+	sessions map[string]*intengine.Session
 }
 
-func (m *mockSessionManager) GetOrCreateSession(ctx context.Context, sessionID string, cfg engine.SessionConfig) (*engine.Session, error) {
+func (m *mockSessionManager) GetOrCreateSession(ctx context.Context, sessionID string, cfg intengine.SessionConfig) (*intengine.Session, error) {
 	if sess, ok := m.sessions[sessionID]; ok {
 		return sess, nil
 	}
 	return nil, &sessionNotFoundError{}
 }
 
-func (m *mockSessionManager) GetSession(sessionID string) (*engine.Session, bool) {
+func (m *mockSessionManager) GetSession(sessionID string) (*intengine.Session, bool) {
 	sess, ok := m.sessions[sessionID]
 	return sess, ok
 }
@@ -330,8 +331,8 @@ func (m *mockSessionManager) TerminateSession(sessionID string) error {
 	return nil
 }
 
-func (m *mockSessionManager) ListActiveSessions() []*engine.Session {
-	list := make([]*engine.Session, 0, len(m.sessions))
+func (m *mockSessionManager) ListActiveSessions() []*intengine.Session {
+	list := make([]*intengine.Session, 0, len(m.sessions))
 	for _, s := range m.sessions {
 		list = append(list, s)
 	}
@@ -339,7 +340,7 @@ func (m *mockSessionManager) ListActiveSessions() []*engine.Session {
 }
 
 func (m *mockSessionManager) Shutdown() {
-	m.sessions = make(map[string]*engine.Session)
+	m.sessions = make(map[string]*intengine.Session)
 }
 
 type sessionNotFoundError struct{}

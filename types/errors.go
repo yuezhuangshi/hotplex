@@ -1,4 +1,4 @@
-package hotplex
+package types
 
 import "errors"
 

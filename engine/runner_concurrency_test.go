@@ -1,7 +1,7 @@
 //go:build integration
 // +build integration
 
-package hotplex
+package engine
 
 import (
 	"context"
@@ -13,8 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hrygo/hotplex/internal/engine"
+	intengine "github.com/hrygo/hotplex/internal/engine"
 	"github.com/hrygo/hotplex/internal/security"
+	"github.com/hrygo/hotplex/types"
 )
 
 func TestEngine_Concurrency(t *testing.T) {
@@ -56,7 +57,7 @@ done
 		opts:           opts,
 		cliPath:        dummyPath,
 		logger:         logger,
-		manager:        engine.NewSessionPool(logger, opts.IdleTimeout, engine.EngineOptions(opts), dummyPath),
+		manager:        intengine.NewSessionPool(logger, opts.IdleTimeout, intengine.EngineOptions(opts), dummyPath),
 		dangerDetector: security.NewDetector(logger),
 	}
 	defer eng.manager.Shutdown()
@@ -77,7 +78,7 @@ done
 			for j := 0; j < executionsPerSession; j++ {
 				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 
-				err := eng.Execute(ctx, &Config{
+				err := eng.Execute(ctx, &types.Config{
 					SessionID: sessionID,
 					WorkDir:   tmpDir,
 				}, "test-prompt", func(eventType string, data any) error {

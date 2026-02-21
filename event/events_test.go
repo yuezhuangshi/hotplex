@@ -1,4 +1,4 @@
-package hotplex
+package event
 
 import (
 	"errors"

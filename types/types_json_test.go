@@ -1,9 +1,11 @@
-package hotplex
+package types
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
+	"github.com/hrygo/hotplex/event"
 	"github.com/hrygo/hotplex/internal/security"
 )
 
@@ -118,7 +120,7 @@ func TestContentBlock_JSON_ToolResult(t *testing.T) {
 }
 
 func TestSessionStatsData_JSON_Marshal(t *testing.T) {
-	data := &SessionStatsData{
+	data := &event.SessionStatsData{
 		SessionID:       "test-123",
 		TotalDurationMs: 1000,
 		ToolCallCount:   5,
@@ -133,16 +135,16 @@ func TestSessionStatsData_JSON_Marshal(t *testing.T) {
 
 	// Verify JSON contains expected fields
 	jsonStr := string(jsonBytes)
-	if !contains(jsonStr, "session_id") {
+	if !strings.Contains(jsonStr, "session_id") {
 		t.Error("JSON should contain 'session_id'")
 	}
-	if !contains(jsonStr, "test-123") {
+	if !strings.Contains(jsonStr, "test-123") {
 		t.Error("JSON should contain 'test-123'")
 	}
 }
 
 func TestDangerBlockEvent_JSON_Marshal(t *testing.T) {
-	event := &security.DangerBlockEvent{
+	dangerEvent := &security.DangerBlockEvent{
 		Operation:     "rm -rf /",
 		Reason:        "Delete root",
 		Level:         security.DangerLevelCritical,
@@ -151,13 +153,13 @@ func TestDangerBlockEvent_JSON_Marshal(t *testing.T) {
 		Suggestions:   []string{"Use rm -i"},
 	}
 
-	jsonBytes, err := json.Marshal(event)
+	jsonBytes, err := json.Marshal(dangerEvent)
 	if err != nil {
 		t.Fatalf("Marshal error: %v", err)
 	}
 
 	jsonStr := string(jsonBytes)
-	if !contains(jsonStr, "operation") {
+	if !strings.Contains(jsonStr, "operation") {
 		t.Error("JSON should contain 'operation'")
 	}
 }
@@ -187,7 +189,7 @@ func TestUsageStats_JSON(t *testing.T) {
 }
 
 func TestEventMeta_JSON(t *testing.T) {
-	meta := &EventMeta{
+	meta := &event.EventMeta{
 		DurationMs:      1000,
 		TotalDurationMs: 5000,
 		ToolName:        "bash",
@@ -201,7 +203,7 @@ func TestEventMeta_JSON(t *testing.T) {
 	}
 
 	jsonStr := string(jsonBytes)
-	if !contains(jsonStr, "tool_name") {
+	if !strings.Contains(jsonStr, "tool_name") {
 		t.Error("JSON should contain 'tool_name'")
 	}
 }
