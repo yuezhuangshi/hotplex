@@ -260,8 +260,13 @@ func (sm *SessionPool) startSession(ctx context.Context, sessionID string, cfg S
 
 	go func() {
 		err := cmd.Wait()
-		if sess.GetStatus() != SessionStatusDead && sessLog != nil {
+		if sess.GetStatus() != SessionStatusDead {
 			sessLog.Warn("Session OS process exited unexpectedly", "exit_error", err)
+			// Update status to Dead and notify callback
+			sess.SetStatus(SessionStatusDead)
+			if cb := sess.GetCallback(); cb != nil {
+				_ = cb("runner_exit", nil)
+			}
 		}
 	}()
 
@@ -377,17 +382,37 @@ func (sm *SessionPool) Shutdown() {
 	})
 
 	sm.mu.Lock()
-	defer sm.mu.Unlock()
 
-	// Mark all sessions as Dead and signal runner_exit
+	// Collect callbacks to invoke outside of locks to prevent deadlock
+	type callbackEntry struct {
+		cb      Callback
+		sessLog *slog.Logger
+	}
+	callbacks := make([]callbackEntry, 0, len(sm.sessions))
+
+	// Mark all sessions as Dead and collect callbacks
 	for _, sess := range sm.sessions {
 		sess.mu.Lock()
 		sess.Status = SessionStatusDead
 		if sess.callback != nil {
-			_ = sess.callback("runner_exit", nil)
+			callbacks = append(callbacks, callbackEntry{cb: sess.callback, sessLog: sess.logger})
 		}
 		sess.mu.Unlock()
 	}
+
+	// Release pool lock before invoking callbacks
+	sm.mu.Unlock()
+
+	// Invoke callbacks outside of locks
+	for _, entry := range callbacks {
+		if err := entry.cb("runner_exit", nil); err != nil && entry.sessLog != nil {
+			entry.sessLog.Debug("Shutdown: callback error", "error", err)
+		}
+	}
+
+	// Re-acquire lock for cleanup
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
 
 	// Terminate all sessions
 	for sessionID := range sm.sessions {

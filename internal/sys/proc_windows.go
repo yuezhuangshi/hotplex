@@ -6,6 +6,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sync"
+)
+
+var (
+	taskkillPath     string
+	taskkillPathOnce sync.Once
 )
 
 // SetupCmdSysProcAttr configures the command for Windows (No PGID support).
@@ -21,9 +27,19 @@ func KillProcessGroup(cmd *exec.Cmd) {
 		return
 	}
 
+	// Use absolute path to taskkill to prevent PATH hijacking
+	taskkillPathOnce.Do(func() {
+		var err error
+		taskkillPath, err = exec.LookPath("taskkill")
+		if err != nil {
+			// Fallback to system32 path if LookPath fails
+			taskkillPath = os.Getenv("SystemRoot") + "\\system32\\taskkill.exe"
+		}
+	})
+
 	// Use taskkill to terminate the entire process tree
 	// /F = force, /T = terminate all child processes, /PID = process ID
-	killCmd := exec.Command("taskkill", "/F", "/T", "/PID", fmt.Sprintf("%d", cmd.Process.Pid))
+	killCmd := exec.Command(taskkillPath, "/F", "/T", "/PID", fmt.Sprintf("%d", cmd.Process.Pid))
 	// Ignore errors - process may already be dead
 	_ = killCmd.Run()
 

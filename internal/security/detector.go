@@ -111,6 +111,9 @@ func (dd *Detector) loadDefaultPatterns() {
 		// Command substitution forms
 		{`\$\([^)]*\)`, "Command substitution $() - potential injection", DangerLevelCritical, "injection"},
 		{"`[^`]*`", "Backtick command substitution - potential injection", DangerLevelCritical, "injection"},
+		// Nested command substitution (bypass attempt)
+		{`\$\([^)]*\$\([^)]*\)`, "Nested command substitution - injection bypass attempt", DangerLevelCritical, "injection"},
+		{"`[^`]*`[^`]*`", "Nested backtick substitution - injection bypass attempt", DangerLevelCritical, "injection"},
 		{`eval\s+`, "Eval command execution", DangerLevelCritical, "injection"},
 		{`exec\s+`, "Exec command replacement", DangerLevelHigh, "injection"},
 
@@ -284,6 +287,41 @@ func (dd *Detector) CheckInput(input string) *DangerBlockEvent {
 	if dd.bypassEnabled {
 		dd.logger.Warn("Danger detection bypassed", "input", strutil.Truncate(input, MaxInputLogLength))
 		return nil
+	}
+
+	// Pre-check: Detect null bytes and dangerous control characters
+	// These are often used to bypass regex-based WAF
+	for i, r := range input {
+		if r == '\x00' {
+			dd.logger.Warn("Null byte detected in input - potential bypass attempt",
+				"position", i,
+				"input", strutil.Truncate(input, MaxPatternLogLength))
+			return &DangerBlockEvent{
+				Operation:      strutil.Truncate(input, MaxDisplayLength),
+				Reason:         "Null byte (\\x00) detected - potential WAF bypass attempt",
+				PatternMatched: "null_byte",
+				Level:          DangerLevelCritical,
+				Category:       "injection",
+				BypassAllowed:  false,
+				Suggestions:    []string{"Remove null bytes from input", "Validate input encoding"},
+			}
+		}
+		// Check for other dangerous control characters (except common whitespace)
+		if r < 0x20 && r != '\t' && r != '\n' && r != '\r' {
+			dd.logger.Warn("Control character detected in input - potential bypass attempt",
+				"position", i,
+				"char_code", r,
+				"input", strutil.Truncate(input, MaxPatternLogLength))
+			return &DangerBlockEvent{
+				Operation:      strutil.Truncate(input, MaxDisplayLength),
+				Reason:         fmt.Sprintf("Control character (0x%02X) detected - potential WAF bypass attempt", r),
+				PatternMatched: "control_char",
+				Level:          DangerLevelHigh,
+				Category:       "injection",
+				BypassAllowed:  false,
+				Suggestions:    []string{"Remove control characters from input", "Validate input encoding"},
+			}
+		}
 	}
 
 	// Check each pattern

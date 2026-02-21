@@ -36,6 +36,15 @@ func main() {
 		adminToken = strings.Split(keys, ",")[0]
 	}
 
+	// Warn if admin token is not configured
+	if adminToken == "" {
+		logger.Warn("SECURITY WARNING: No admin token configured. " +
+			"Bypass mode will be unavailable. " +
+			"Set HOTPLEX_API_KEY or HOTPLEX_API_KEYS environment variable for production use.")
+	} else {
+		logger.Info("Admin token configured", "token_length", len(adminToken))
+	}
+
 	opts := hotplex.EngineOptions{
 		Timeout:     30 * time.Minute,
 		IdleTimeout: idleTimeout,

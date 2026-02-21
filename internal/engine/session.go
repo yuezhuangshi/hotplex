@@ -157,8 +157,21 @@ func (s *Session) WriteInput(msg map[string]any) error {
 }
 
 // close releases resources held by the session.
+// IMPORTANT: Caller must hold s.mu lock before calling this method.
 func (s *Session) close() {
 	s.Status = SessionStatusDead
+
+	// Close all pipe resources to prevent file descriptor leaks
+	// and allow ReadStdout/ReadStderr goroutines to exit
+	if s.stdin != nil {
+		_ = s.stdin.Close()
+	}
+	if s.stdout != nil {
+		_ = s.stdout.Close()
+	}
+	if s.stderr != nil {
+		_ = s.stderr.Close()
+	}
 
 	if !s.closed {
 		s.closed = true
