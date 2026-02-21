@@ -226,13 +226,20 @@ func ValidateProviderConfig(cfg ProviderConfig) error {
 
 // MergeProviderConfigs merges multiple provider configurations with precedence.
 // Later configurations override earlier ones for non-zero values.
+//
+// Note: For boolean fields like Enabled, false cannot override true because
+// false is the zero value. Use ExplicitDisable field in ProviderConfig if you
+// need to explicitly disable a provider in an overlay config.
 func MergeProviderConfigs(base, overlay ProviderConfig) ProviderConfig {
 	result := base
 
 	if overlay.Type != "" {
 		result.Type = overlay.Type
 	}
-	if overlay.Enabled {
+	// Use ExplicitDisable to override a true base.Enabled with false
+	if overlay.ExplicitDisable {
+		result.Enabled = false
+	} else if overlay.Enabled {
 		result.Enabled = overlay.Enabled
 	}
 	if overlay.BinaryPath != "" {

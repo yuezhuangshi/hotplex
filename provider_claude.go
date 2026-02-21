@@ -53,10 +53,11 @@ func NewClaudeCodeProvider(cfg ProviderConfig, logger *slog.Logger) (*ClaudeCode
 	var markerDir string
 	if err == nil {
 		markerDir = filepath.Join(homeDir, ".hotplex", "sessions")
-		_ = os.MkdirAll(markerDir, 0755)
 	} else {
 		markerDir = filepath.Join(os.TempDir(), "hotplex_sessions")
-		_ = os.MkdirAll(markerDir, 0755)
+	}
+	if err := os.MkdirAll(markerDir, 0755); err != nil {
+		return nil, fmt.Errorf("create marker directory: %w", err)
 	}
 
 	return &ClaudeCodeProvider{
@@ -87,7 +88,9 @@ func (p *ClaudeCodeProvider) BuildCLIArgs(providerSessionID string, opts *Provid
 		args = append(args, "--session-id", providerSessionID)
 		// Create marker file for persistence detection
 		markerPath := filepath.Join(p.markerDir, providerSessionID+".lock")
-		_ = os.WriteFile(markerPath, []byte(""), 0644)
+		if err := os.WriteFile(markerPath, []byte(""), 0644); err != nil {
+			p.logger.Warn("Failed to create session marker file", "session_id", providerSessionID, "error", err)
+		}
 		p.logger.Debug("Creating new Claude Code session", "session_id", providerSessionID)
 	}
 

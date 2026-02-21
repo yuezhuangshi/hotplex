@@ -1,6 +1,7 @@
 package hotplex
 
 import (
+	"fmt"
 	"log/slog"
 	"os/exec"
 	"time"
@@ -13,6 +14,16 @@ const (
 	ProviderTypeClaudeCode ProviderType = "claude-code"
 	ProviderTypeOpenCode   ProviderType = "opencode"
 )
+
+// Valid checks if the provider type is a known valid type.
+func (t ProviderType) Valid() bool {
+	switch t {
+	case ProviderTypeClaudeCode, ProviderTypeOpenCode:
+		return true
+	default:
+		return false
+	}
+}
 
 // Provider defines the interface for AI CLI agent providers.
 // Each provider (Claude Code, OpenCode) implements this interface to handle
@@ -123,6 +134,11 @@ type ProviderConfig struct {
 	// Enabled controls whether this provider is available
 	Enabled bool `json:"enabled" koanf:"enabled"`
 
+	// ExplicitDisable explicitly disables the provider, overriding base config's Enabled=true.
+	// This is needed because bool zero value (false) cannot be distinguished from "not set"
+	// in config merging. Use this when you want to disable a provider in overlay config.
+	ExplicitDisable bool `json:"explicit_disable,omitempty" koanf:"explicit_disable"`
+
 	// BinaryPath overrides the default binary lookup path
 	BinaryPath string `json:"binary_path,omitempty" koanf:"binary_path"`
 
@@ -167,6 +183,21 @@ type OpenCodeConfig struct {
 
 	// Model is the model ID
 	Model string `json:"model,omitempty" koanf:"model"`
+}
+
+// Validate validates the provider configuration.
+// Returns an error if required fields are missing or invalid.
+func (c *ProviderConfig) Validate() error {
+	if c.Type == "" {
+		return fmt.Errorf("provider type is required")
+	}
+	if !c.Type.Valid() {
+		return fmt.Errorf("invalid provider type: %s", c.Type)
+	}
+	if c.OpenCode != nil && c.OpenCode.Port < 0 {
+		return fmt.Errorf("invalid port number: %d", c.OpenCode.Port)
+	}
+	return nil
 }
 
 // ProviderBase provides common functionality for provider implementations.

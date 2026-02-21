@@ -462,6 +462,113 @@ func TestMergeStringSlices(t *testing.T) {
 	}
 }
 
+func TestProviderType_Valid(t *testing.T) {
+	tests := []struct {
+		pt       ProviderType
+		expected bool
+	}{
+		{ProviderTypeClaudeCode, true},
+		{ProviderTypeOpenCode, true},
+		{ProviderType("invalid"), false},
+		{ProviderType(""), false},
+		{ProviderType("claude"), false},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.pt), func(t *testing.T) {
+			if got := tt.pt.Valid(); got != tt.expected {
+				t.Errorf("ProviderType(%q).Valid() = %v, want %v", tt.pt, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestProviderConfig_Validate(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     ProviderConfig
+		wantErr bool
+	}{
+		{
+			name:    "valid claude-code config",
+			cfg:     ProviderConfig{Type: ProviderTypeClaudeCode, Enabled: true},
+			wantErr: false,
+		},
+		{
+			name:    "valid opencode config",
+			cfg:     ProviderConfig{Type: ProviderTypeOpenCode, Enabled: true},
+			wantErr: false,
+		},
+		{
+			name:    "empty type",
+			cfg:     ProviderConfig{Type: "", Enabled: true},
+			wantErr: true,
+		},
+		{
+			name:    "invalid type",
+			cfg:     ProviderConfig{Type: ProviderType("invalid"), Enabled: true},
+			wantErr: true,
+		},
+		{
+			name: "negative port",
+			cfg: ProviderConfig{
+				Type:    ProviderTypeOpenCode,
+				Enabled: true,
+				OpenCode: &OpenCodeConfig{
+					Port: -1,
+				},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.cfg.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestMergeProviderConfigs_ExplicitDisable(t *testing.T) {
+	base := ProviderConfig{
+		Type:         ProviderTypeClaudeCode,
+		Enabled:      true,
+		DefaultModel: "claude-3-5-sonnet",
+	}
+
+	// Test: overlay with ExplicitDisable=true should disable
+	overlay := ProviderConfig{
+		Type:            ProviderTypeClaudeCode,
+		ExplicitDisable: true,
+	}
+	result := MergeProviderConfigs(base, overlay)
+	if result.Enabled {
+		t.Error("Expected Enabled=false when ExplicitDisable=true in overlay")
+	}
+
+	// Test: overlay without ExplicitDisable should inherit base.Enabled
+	overlay2 := ProviderConfig{
+		Type: ProviderTypeClaudeCode,
+	}
+	result2 := MergeProviderConfigs(base, overlay2)
+	if !result2.Enabled {
+		t.Error("Expected Enabled=true inherited from base when overlay has no ExplicitDisable")
+	}
+
+	// Test: overlay with Enabled=true should still work
+	overlay3 := ProviderConfig{
+		Type:    ProviderTypeClaudeCode,
+		Enabled: true,
+	}
+	result3 := MergeProviderConfigs(base, overlay3)
+	if !result3.Enabled {
+		t.Error("Expected Enabled=true when overlay.Enabled=true")
+	}
+}
+
 // Helper function
 func assertContains(t *testing.T, slice []string, item string) {
 	t.Helper()
