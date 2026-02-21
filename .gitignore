@@ -25,3 +25,10 @@ Thumbs.db
 !.claude/skills
 !.claude/rules
 !.claude/workflows
+
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
