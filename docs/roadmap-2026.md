@@ -63,14 +63,14 @@
 
 ### Week 4 (3/22 - 3/31): Load Test + Release
 
-| Track       | Deliverables                                   | Status |
-| ----------- | ---------------------------------------------- | ------ |
-| **Core**    | Stress testing (1000+ concurrent sessions)     | ✅      |
-| **Core**    | Health check endpoints (`/health`, `/metrics`) | ✅      |
-| **Core**    | Hot config reload                              | ✅      |
-| **SDK**     | SDK v1.0 release (Go/Python/TypeScript)        | ✅      |
-| **Content** | Documentation site launch                      | ✅      |
-| **Content** | Production deployment guide                    | ✅      |
+| Track       | Deliverables                                         | Status |
+| ----------- | ---------------------------------------------------- | ------ |
+| **Core**    | Stress testing (1000+ concurrent sessions)           | ✅      |
+| **Core**    | Health check endpoints (`/health`, `/metrics`)       | ✅      |
+| **Core**    | Hot config reload                                    | ✅      |
+| **SDK**     | SDK stable production release (Go/Python/TypeScript) | ✅      |
+| **Content** | Documentation site launch                            | ✅      |
+| **Content** | Production deployment guide                          | ✅      |
 
 ---
 
@@ -100,9 +100,9 @@ Week 4 ████████████████████  100% 🎯
  [x] Hot config reload
 
 ### SDKs
- [x] Go SDK v1.0
- [x] Python SDK v1.0
- [x] TypeScript SDK v1.0
+ [x] Go SDK
+ [x] Python SDK
+ [x] TypeScript SDK
 
 ### Documentation & Content
  [x] Quick Start 2.0
@@ -129,7 +129,7 @@ The following items were evaluated and deprioritized:
 | ------------------------ | ------------------------------------------- |
 | **Three-Track Parallel** | Core / SDK / Content advance simultaneously |
 | **AI-First Coding**      | Build HotPlex using Claude Code & OpenCode  |
-| **Incremental Release**  | Weekly alpha → beta → v1.0                  |
+| **Incremental Release**  | Weekly alpha → beta → stable                |
 | **Docs Synchronized**    | Write docs as features complete             |
 
 ---

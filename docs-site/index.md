@@ -92,11 +92,11 @@ func main() {
 
 HotPlex provides official SDKs for multiple languages:
 
-| SDK | Status | Description |
-|-----|--------|-------------|
-| [Go SDK](/sdks/go-sdk) | ✅ v1.0 | Native Go integration |
-| [Python SDK](/sdks/python-sdk) | ✅ v1.0 | WebSocket client for Python |
-| [TypeScript SDK](/sdks/typescript-sdk) | ✅ v1.0 | TypeScript/JavaScript client |
+| SDK                                    | Status   | Description                  |
+| -------------------------------------- | -------- | ---------------------------- |
+| [Go SDK](/sdks/go-sdk)                 | ✅ Stable | Native Go integration        |
+| [Python SDK](/sdks/python-sdk)         | ✅ Stable | WebSocket client for Python  |
+| [TypeScript SDK](/sdks/typescript-sdk) | ✅ Stable | TypeScript/JavaScript client |
 
 ## Roadmap
 

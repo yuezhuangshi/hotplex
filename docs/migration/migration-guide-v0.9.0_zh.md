@@ -58,7 +58,7 @@ HotPlex v0.9.0 引入了对 Prometheus 和 OpenTelemetry 的原生支持。
 ### 建议
 更新您的依赖项以匹配 `v0.9.0` 发布标签，以确保跨多语言环境的行为一致性。
 
-- **Go**: `go get github.com/hrygo/hotplex@v0.9.0`
+- **Go**: `go get github.com/hrygo/hotplex@latest` (或指定具体的 Git tag，如 `@v0.9.0`)
 - **Python**: `pip install hotplex==0.9.0`
 - **TypeScript**: `npm install @hrygo/hotplex@0.9.0`
 

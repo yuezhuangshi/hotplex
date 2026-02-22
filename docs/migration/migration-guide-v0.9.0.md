@@ -58,7 +58,7 @@ All SDKs (Go, Python, TypeScript) are now being synchronized to the same version
 ### Recommendation
 Update your dependencies to match the `v0.9.0` release tag for consistent behavior across multi-language environments.
 
-- **Go**: `go get github.com/hrygo/hotplex@v0.9.0`
+- **Go**: `go get github.com/hrygo/hotplex@latest` (or specify the exact tag like `@v0.9.0`)
 - **Python**: `pip install hotplex==0.9.0`
 - **TypeScript**: `npm install @hrygo/hotplex@0.9.0`
 

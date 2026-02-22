@@ -189,13 +189,13 @@ We are actively evolving hotplex to become the definitive execution engine for t
 
 **📊 [Full 2026 Roadmap →](docs/roadmap-2026.md)** — March 2026 Sprint: All core features completed!
 
-### ✅ Completed (v1.0)
+### ✅ Completed
 
 - [x] **Provider Abstraction**: Decoupled engine from specific CLI tools; native support for Claude Code and OpenCode.
 - [x] **Event Hooks**: Plugin system with Webhook, Slack, Feishu, DingTalk notifications.
 - [x] **Observability**: OpenTelemetry tracing + Prometheus metrics + Health endpoints (`/health`, `/metrics`).
 - [x] **Remote Execution**: Docker-based isolated sandbox execution.
-- [x] **Multi-Language SDKs**: Go SDK v1.0, Python SDK v1.0, TypeScript SDK v1.0.
+- [x] **Multi-Language SDKs**: Go SDK, Python SDK, TypeScript SDK.
 - [x] **Hot Config Reload**: Runtime configuration updates without restart.
 - [x] **Stress Testing**: Validated for 1000+ concurrent sessions.
 - [x] **Documentation Site**: VitePress-powered documentation with GitHub Pages deployment.
