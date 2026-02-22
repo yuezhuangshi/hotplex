@@ -65,20 +65,20 @@
 
   <!-- Components inside Layer 2 -->
   <g transform="translate(100, 410)">
+    <rect width="170" height="140" rx="8" class="box-success" />
+    <text x="85" y="30" text-anchor="middle" class="text-label" style="fill:#28a745">SessionController</text>
+    <text x="85" y="55" text-anchor="middle" class="text-sub">internal/engine</text>
+    <rect x="15" y="75" width="140" height="45" rx="4" fill="#fff" stroke="#28a745" stroke-width="1"/>
+    <text x="85" y="102" text-anchor="middle" class="text-code">Process Pool &amp; GC</text>
+  </g>
+
+  <g transform="translate(310, 410)">
     <rect width="170" height="140" rx="8" class="box-warning" />
     <text x="85" y="30" text-anchor="middle" class="text-label" style="fill:#d73a49">SafetyManager</text>
     <text x="85" y="55" text-anchor="middle" class="text-sub">internal/security</text>
     <rect x="15" y="75" width="140" height="45" rx="4" fill="#fff" stroke="#d73a49" stroke-width="1"/>
     <text x="85" y="95" text-anchor="middle" class="text-code">Regex WAF</text>
     <text x="85" y="110" text-anchor="middle" class="text-code">AllowList</text>
-  </g>
-
-  <g transform="translate(310, 410)">
-    <rect width="170" height="140" rx="8" class="box-success" />
-    <text x="85" y="30" text-anchor="middle" class="text-label" style="fill:#28a745">SessionController</text>
-    <text x="85" y="55" text-anchor="middle" class="text-sub">internal/engine</text>
-    <rect x="15" y="75" width="140" height="45" rx="4" fill="#fff" stroke="#28a745" stroke-width="1"/>
-    <text x="85" y="102" text-anchor="middle" class="text-code">Process Pool &amp; GC</text>
   </g>
 
   <g transform="translate(520, 410)">
@@ -123,8 +123,8 @@
   <path d="M 815 380 L 815 410" class="arrow" />
 
   <!-- Layer 2 to Layer 3 -->
-  <path d="M 395 550 L 395 645" class="arrow" marker-end="url(#arrowhead)"/>
-  <text x="405" y="595" class="text-code" style="fill:#0366d6">Process Fork &amp; PGID</text>
+  <path d="M 185 550 L 185 645" class="arrow" marker-end="url(#arrowhead)"/>
+  <text x="195" y="595" class="text-code" style="fill:#0366d6">Process Fork &amp; PGID</text>
   
   <path d="M 815 550 L 815 645" class="arrow" marker-end="url(#arrowhead)"/>
   <text x="650" y="595" class="text-code" style="fill:#0366d6">Full-Duplex I/O Stream</text>
