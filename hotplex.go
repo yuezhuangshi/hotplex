@@ -8,6 +8,13 @@ import (
 	"github.com/hrygo/hotplex/types"
 )
 
+const (
+	Version      = "1.0.0"
+	VersionMajor = 1
+	VersionMinor = 0
+	VersionPatch = 0
+)
+
 // ===== Engine Types =====
 
 // Engine is the core Control Plane for AI CLI agent integration.
