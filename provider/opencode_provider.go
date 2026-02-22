@@ -117,8 +117,15 @@ func NewOpenCodeProvider(cfg ProviderConfig, logger *slog.Logger) (*OpenCodeProv
 func (p *OpenCodeProvider) BuildCLIArgs(providerSessionID string, opts *ProviderSessionOptions) []string {
 	args := []string{
 		"run",
-		"--format", "json",
 	}
+
+	// Use --session if we have a provider-level session ID
+	if providerSessionID != "" {
+		args = append(args, "--session", providerSessionID)
+	}
+
+	// Format comes before prompt and options
+	args = append(args, "--format", "json")
 
 	// Mode selection
 	if p.opencodeCfg.PlanMode || opts.PlanMode {
@@ -146,8 +153,6 @@ func (p *OpenCodeProvider) BuildCLIArgs(providerSessionID string, opts *Provider
 
 	// Non-interactive mode for auto-rejecting certain permissions
 	args = append(args, "--non-interactive")
-
-	// Working directory is set via cmd.Dir, not CLI args
 
 	// Extra arguments from config
 	if len(p.opts.ExtraArgs) > 0 {
@@ -335,7 +340,6 @@ func (p *OpenCodeProvider) parsePart(part OpenCodePart, rawLine string) *Provide
 }
 
 // DetectTurnEnd checks if the event signals turn completion.
-// OpenCode signals completion via step-finish (last step) or explicit completion.
 func (p *OpenCodeProvider) DetectTurnEnd(event *ProviderEvent) bool {
 	if event == nil {
 		return false
@@ -345,13 +349,17 @@ func (p *OpenCodeProvider) DetectTurnEnd(event *ProviderEvent) bool {
 		return true
 	}
 
-	// Step finish on the last step indicates completion
+	// OpenCode signals completion via step-finish (last step) or explicit completion.
 	if event.Type == EventTypeStepFinish && event.Metadata != nil {
-		return event.Metadata.CurrentStep >= event.Metadata.TotalSteps
+		// If current step matches total steps, it's the end
+		if event.Metadata.CurrentStep > 0 && event.Metadata.TotalSteps > 0 &&
+			event.Metadata.CurrentStep >= event.Metadata.TotalSteps {
+			return true
+		}
 	}
 
-	// Some OpenCode outputs include a final "result" or "complete" marker
-	if event.RawType == "result" || event.RawType == "complete" {
+	// Some events explicitly mark the finish
+	if event.RawType == "result" || event.RawType == "complete" || event.RawType == "finish" {
 		return true
 	}
 
@@ -359,10 +367,11 @@ func (p *OpenCodeProvider) DetectTurnEnd(event *ProviderEvent) bool {
 }
 
 // ExtractSessionID extracts session ID from OpenCode events.
-// Note: OpenCode may not expose session IDs the same way Claude Code does.
 func (p *OpenCodeProvider) ExtractSessionID(event *ProviderEvent) string {
-	// OpenCode doesn't have explicit session IDs in output
-	// Sessions are managed differently
+	// If the event has a session ID
+	if event.SessionID != "" {
+		return event.SessionID
+	}
 	return ""
 }
 

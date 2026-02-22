@@ -135,6 +135,18 @@ make build
 
 ---
 
+## 📂 示例代码库
+
+浏览我们的即插即用示例，加速您的集成：
+
+- **[go_claude_basic](_examples/go_claude_basic/main.go)**: 基础配置快速上手。
+- **[go_claude_lifecycle](_examples/go_claude_lifecycle/main.go)**: Claude 多轮对话、会话恢复及 PGID 管理。
+- **[go_opencode_basic](_examples/go_opencode_basic/main.go)**: OpenCode 极简集成示例。
+- **[go_opencode_lifecycle](_examples/go_opencode_lifecycle/main.go)**: OpenCode 多轮对话及会话持久化示例。
+- **[node_claude_websocket](_examples/node_claude_websocket/enterprise_client.js)**: 全双工 Web 客户端集成。
+
+---
+
 ## 🛡️ 安全防御体系
 
 CLI 智能体本质上是在直接执行 LLM 生成的 raw Shell 命令。**安全绝不能被当作事后的补救手段。** hotplex 采用了深度的防御策略体系：

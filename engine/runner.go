@@ -523,7 +523,8 @@ func (r *Engine) dispatchNormalizedCallback(pevt *provider.ProviderEvent, callba
 	default:
 		// Fallback for other event types
 		if pevt.Content != "" {
-			return callback("answer", pevt.Content)
+			meta := &event.EventMeta{TotalDurationMs: totalDur}
+			return callback("answer", event.NewEventWithMeta("answer", pevt.Content, meta))
 		}
 	}
 

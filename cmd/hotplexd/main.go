@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/hrygo/hotplex"
 	"github.com/hrygo/hotplex/internal/server"
 )
@@ -59,9 +60,23 @@ func main() {
 	}
 
 	// 2. Initialize CORS configuration and WebSocket handler
-	corsConfig := server.NewCORSConfig(logger)
-	wsHandler := server.NewWebSocketHandler(engine, logger, corsConfig)
+	corsConfig := server.NewSecurityConfig(logger)
+	wsHandler := server.NewHotPlexWSHandler(engine, logger, corsConfig)
 	http.Handle("/ws/v1/agent", wsHandler)
+
+	// 2.1 Initialize OpenCode compatibility server
+	openCodeSrv := server.NewOpenCodeHTTPHandler(engine, logger, corsConfig)
+	ocRouter := mux.NewRouter()
+	openCodeSrv.RegisterRoutes(ocRouter)
+	// We mount the mux router to the default ServeMux
+	// Note: We need to handle /global, /session, /config etc.
+	// We can use a prefix or just individual registrations.
+	// OpenCode SDK expects these at the root by default if baseURL is set to the host.
+	http.Handle("/global/", ocRouter)
+	http.Handle("/session", ocRouter)
+	http.Handle("/session/", ocRouter)
+	http.Handle("/config", ocRouter)
+
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"status":"ok"}`))

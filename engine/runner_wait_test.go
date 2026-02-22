@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hrygo/hotplex/event"
 	intengine "github.com/hrygo/hotplex/internal/engine"
 	"github.com/hrygo/hotplex/provider"
 	"github.com/hrygo/hotplex/types"
@@ -71,7 +72,11 @@ func TestEngine_createEventBridge_RawLine(t *testing.T) {
 	var received string
 	userCb := func(eventType string, data any) error {
 		if eventType == "answer" {
-			received = data.(string)
+			if s, ok := data.(string); ok {
+				received = s
+			} else if ev, ok := data.(*event.EventWithMeta); ok {
+				received = ev.EventData
+			}
 		}
 		return nil
 	}

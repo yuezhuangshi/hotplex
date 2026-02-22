@@ -199,8 +199,8 @@ HotPlex 默认提供以下安全特性：
 
 ### 5.1 多 Provider 支持
 HotPlex 支持多种底座智能体，您可以通过配置文件或代码动态注册新的 Provider。
-- **Claude Code**: 极致的代码编辑和执行能力。
-- **OpenCode**: 灵活的开源智能体支持。
+- **Claude Code**: 极致的代码编辑和执行能力 (默认)。详见 [Claude Code 集成指南](providers/claudecode_zh.md)。
+- **OpenCode**: 灵活的开源智能体支持。详见 [OpenCode 集成指南](providers/opencode_zh.md)。
 
 ### 5.2 统计与观测
 每次会话结束时，`session_stats` 事件会返回详细的 `SessionStatsData`：

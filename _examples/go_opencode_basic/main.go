@@ -32,7 +32,7 @@ func main() {
 	// OpenCode-specific configuration can be provided via the OpenCode field.
 	opencodePrv, err := hotplex.NewOpenCodeProvider(hotplex.ProviderConfig{
 		Type:         hotplex.ProviderTypeOpenCode,
-		DefaultModel: "gpt-4o", // Example model
+		DefaultModel: "zhipu/glm-5-code-plan", // Updated to GLM 5 Code Plan
 		OpenCode: &hotplex.OpenCodeConfig{
 			PlanMode:   true,  // Start in Planning mode
 			UseHTTPAPI: false, // Use CLI mode (default)

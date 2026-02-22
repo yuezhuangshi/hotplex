@@ -196,8 +196,8 @@ HotPlex provides out-of-the-box security:
 
 ### 5.1 Multi-Provider Support
 HotPlex supports various underlying agents. You can register providers dynamically:
-- **Claude Code**: Industry-leading code editing and execution.
-- **OpenCode**: Flexible support for open-source agents.
+- **Claude Code**: Industry-leading code editing and execution (Default). See the [Claude Code Integration Guide](providers/claudecode.md) for details.
+- **OpenCode**: Flexible support for open-source agents. See the [OpenCode Integration Guide](providers/opencode.md) for details.
 
 ### 5.2 Observability & Telemetry
 At the end of each session, the `session_stats` event returns `SessionStatsData`:

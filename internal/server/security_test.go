@@ -7,14 +7,14 @@ import (
 	"testing"
 )
 
-func TestNewCORSConfig_Defaults(t *testing.T) {
+func TestNewSecurityConfig_Defaults(t *testing.T) {
 	// Clear environment
 	_ = os.Unsetenv(EnvAllowedOrigins)
 	_ = os.Unsetenv(EnvAPIKey)
 	_ = os.Unsetenv(EnvAPIKeys)
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	config := NewCORSConfig(logger)
+	config := NewSecurityConfig(logger)
 
 	origins := config.ListOrigins()
 	if len(origins) != len(DefaultAllowedOrigins) {
@@ -26,12 +26,12 @@ func TestNewCORSConfig_Defaults(t *testing.T) {
 	}
 }
 
-func TestNewCORSConfig_CustomOrigins(t *testing.T) {
+func TestNewSecurityConfig_CustomOrigins(t *testing.T) {
 	_ = os.Setenv(EnvAllowedOrigins, "https://example.com,https://api.example.com")
 	defer func() { _ = os.Unsetenv(EnvAllowedOrigins) }()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	config := NewCORSConfig(logger)
+	config := NewSecurityConfig(logger)
 
 	origins := config.ListOrigins()
 	if len(origins) != 2 {
@@ -51,24 +51,24 @@ func TestNewCORSConfig_CustomOrigins(t *testing.T) {
 	}
 }
 
-func TestNewCORSConfig_SingleAPIKey(t *testing.T) {
+func TestNewSecurityConfig_SingleAPIKey(t *testing.T) {
 	_ = os.Setenv(EnvAPIKey, "test-secret-key")
 	defer func() { _ = os.Unsetenv(EnvAPIKey) }()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	config := NewCORSConfig(logger)
+	config := NewSecurityConfig(logger)
 
 	if !config.IsAPIKeyEnabled() {
 		t.Error("API key should be enabled")
 	}
 }
 
-func TestNewCORSConfig_MultipleAPIKeys(t *testing.T) {
+func TestNewSecurityConfig_MultipleAPIKeys(t *testing.T) {
 	_ = os.Setenv(EnvAPIKeys, "key1,key2,key3")
 	defer func() { _ = os.Unsetenv(EnvAPIKeys) }()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	config := NewCORSConfig(logger)
+	config := NewSecurityConfig(logger)
 
 	if !config.IsAPIKeyEnabled() {
 		t.Error("API key should be enabled")
@@ -80,7 +80,7 @@ func TestCheckOrigin_ValidOrigin(t *testing.T) {
 	_ = os.Unsetenv(EnvAPIKeys)
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	config := NewCORSConfig(logger)
+	config := NewSecurityConfig(logger)
 	checkOrigin := config.CheckOrigin()
 
 	req := httptest.NewRequest("GET", "/ws", nil)
@@ -96,7 +96,7 @@ func TestCheckOrigin_InvalidOrigin(t *testing.T) {
 	_ = os.Unsetenv(EnvAPIKeys)
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	config := NewCORSConfig(logger)
+	config := NewSecurityConfig(logger)
 	checkOrigin := config.CheckOrigin()
 
 	req := httptest.NewRequest("GET", "/ws", nil)
@@ -112,7 +112,7 @@ func TestCheckOrigin_NoOrigin(t *testing.T) {
 	_ = os.Unsetenv(EnvAPIKeys)
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	config := NewCORSConfig(logger)
+	config := NewSecurityConfig(logger)
 	checkOrigin := config.CheckOrigin()
 
 	req := httptest.NewRequest("GET", "/ws", nil)
@@ -129,7 +129,7 @@ func TestCheckOrigin_APIKeyInHeader(t *testing.T) {
 	_ = os.Unsetenv(EnvAllowedOrigins)
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	config := NewCORSConfig(logger)
+	config := NewSecurityConfig(logger)
 	checkOrigin := config.CheckOrigin()
 
 	req := httptest.NewRequest("GET", "/ws", nil)
@@ -147,7 +147,7 @@ func TestCheckOrigin_APIKeyInQuery(t *testing.T) {
 	_ = os.Unsetenv(EnvAllowedOrigins)
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	config := NewCORSConfig(logger)
+	config := NewSecurityConfig(logger)
 	checkOrigin := config.CheckOrigin()
 
 	req := httptest.NewRequest("GET", "/ws?api_key=secret-key-123", nil)
@@ -164,7 +164,7 @@ func TestCheckOrigin_InvalidAPIKey(t *testing.T) {
 	_ = os.Unsetenv(EnvAllowedOrigins)
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	config := NewCORSConfig(logger)
+	config := NewSecurityConfig(logger)
 	checkOrigin := config.CheckOrigin()
 
 	req := httptest.NewRequest("GET", "/ws", nil)
@@ -182,7 +182,7 @@ func TestCheckOrigin_APIKeyMissing(t *testing.T) {
 	_ = os.Unsetenv(EnvAllowedOrigins)
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	config := NewCORSConfig(logger)
+	config := NewSecurityConfig(logger)
 	checkOrigin := config.CheckOrigin()
 
 	req := httptest.NewRequest("GET", "/ws", nil)
@@ -196,7 +196,7 @@ func TestCheckOrigin_APIKeyMissing(t *testing.T) {
 
 func TestAddRemoveOrigin(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	config := NewCORSConfig(logger)
+	config := NewSecurityConfig(logger)
 
 	// Add new origin
 	config.AddOrigin("https://new-origin.com")
@@ -227,7 +227,7 @@ func TestAddRemoveOrigin(t *testing.T) {
 
 func TestAddRemoveAPIKey(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	config := NewCORSConfig(logger)
+	config := NewSecurityConfig(logger)
 
 	// Initially disabled
 	if config.IsAPIKeyEnabled() {
@@ -275,9 +275,9 @@ func TestMaskAPIKey(t *testing.T) {
 	}
 }
 
-func TestCORSConfig_Concurrency(t *testing.T) {
+func TestSecurityConfig_Concurrency(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	config := NewCORSConfig(logger)
+	config := NewSecurityConfig(logger)
 
 	// Run concurrent operations to test race conditions
 	done := make(chan bool)

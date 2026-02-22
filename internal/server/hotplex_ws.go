@@ -54,17 +54,17 @@ func (cw *connWriter) writeJSON(event string, data any, requestID int) {
 	_ = cw.conn.WriteMessage(websocket.TextMessage, val)
 }
 
-// WebSocketHandler manages a WebSocket connection to a HotPlex Engine.
-type WebSocketHandler struct {
+// HotPlexWSHandler manages a WebSocket connection to a HotPlex Engine.
+type HotPlexWSHandler struct {
 	engine   hotplex.HotPlexClient
 	logger   *slog.Logger
-	cors     *CORSConfig
+	cors     *SecurityConfig
 	upgrader websocket.Upgrader
 }
 
-// NewWebSocketHandler creates a new handler with CORS configuration.
-func NewWebSocketHandler(engine hotplex.HotPlexClient, logger *slog.Logger, cors *CORSConfig) *WebSocketHandler {
-	return &WebSocketHandler{
+// NewHotPlexWSHandler creates a new handler with security configuration.
+func NewHotPlexWSHandler(engine hotplex.HotPlexClient, logger *slog.Logger, cors *SecurityConfig) *HotPlexWSHandler {
+	return &HotPlexWSHandler{
 		engine: engine,
 		logger: logger,
 		cors:   cors,
@@ -77,7 +77,7 @@ func NewWebSocketHandler(engine hotplex.HotPlexClient, logger *slog.Logger, cors
 }
 
 // ServeHTTP upgrades the HTTP connection and starts the read loop.
-func (h *WebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *HotPlexWSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	conn, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		h.logger.Error("Failed to upgrade websocket connection", "error", err)
@@ -137,7 +137,7 @@ func (h *WebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *WebSocketHandler) handleExecute(connCtx context.Context, cw *connWriter, req ClientRequest, tasks map[string]context.CancelFunc, mu *sync.Mutex) {
+func (h *HotPlexWSHandler) handleExecute(connCtx context.Context, cw *connWriter, req ClientRequest, tasks map[string]context.CancelFunc, mu *sync.Mutex) {
 	if req.Prompt == "" {
 		cw.writeJSON("error", map[string]string{"message": "prompt cannot be empty"}, req.RequestID)
 		return
@@ -201,7 +201,7 @@ func (h *WebSocketHandler) handleExecute(connCtx context.Context, cw *connWriter
 	}, requestID)
 }
 
-func (h *WebSocketHandler) handleStop(cw *connWriter, req ClientRequest, tasks map[string]context.CancelFunc, mu *sync.Mutex) {
+func (h *HotPlexWSHandler) handleStop(cw *connWriter, req ClientRequest, tasks map[string]context.CancelFunc, mu *sync.Mutex) {
 	if req.SessionID == "" {
 		cw.writeJSON("error", map[string]string{"message": "session_id is required for stop"}, req.RequestID)
 		return
@@ -230,12 +230,12 @@ func (h *WebSocketHandler) handleStop(cw *connWriter, req ClientRequest, tasks m
 	cw.writeJSON("stopped", map[string]string{"session_id": req.SessionID}, req.RequestID)
 }
 
-func (h *WebSocketHandler) handleStats(cw *connWriter, req ClientRequest) {
+func (h *HotPlexWSHandler) handleStats(cw *connWriter, req ClientRequest) {
 	stats := h.engine.GetSessionStats()
 	cw.writeJSON("stats", stats, req.RequestID)
 }
 
-func (h *WebSocketHandler) handleVersion(cw *connWriter, req ClientRequest) {
+func (h *HotPlexWSHandler) handleVersion(cw *connWriter, req ClientRequest) {
 	version, err := h.engine.GetCLIVersion()
 	if err != nil {
 		cw.writeJSON("error", map[string]string{"message": "Failed to get version: " + err.Error()}, req.RequestID)

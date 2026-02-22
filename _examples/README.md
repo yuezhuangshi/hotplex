@@ -20,7 +20,14 @@ Demonstrates how to use HotPlex with the **OpenCode** CLI agent:
 - **Plan/Build Modes**: Configuring OpenCode-specific operational modes.
 - **Model Configuration**: Overriding default models for the provider.
 
-### 4. [Claude WebSocket Client (Node.js)](./node_claude_websocket)
+### 4. [OpenCode Lifecycle (Go)](./go_opencode_lifecycle)
+A comprehensive Go demo showing the end-to-end lifecycle of an OpenCode session:
+- **Cold Start**: Initializing a new persistent process with GLM-5 model.
+- **Multi-turn Interaction**: Continuing conversations within the same session.
+- **Session Persistence**: How HotPlex maintains provider-specific session state.
+- **Warm Start Recovery**: Resuming previous sessions using SessionID.
+
+### 5. [Claude WebSocket Client (Node.js)](./node_claude_websocket)
 
 | File                   | Description                                                                                                |
 | :--------------------- | :--------------------------------------------------------------------------------------------------------- |
@@ -75,6 +82,9 @@ go run _examples/go_claude_lifecycle/main.go
 
 # OpenCode Basic Demo
 go run _examples/go_opencode_basic/main.go
+
+# OpenCode Lifecycle Demo
+go run _examples/go_opencode_lifecycle/main.go
 ```
 
 ### Running the WebSocket Examples

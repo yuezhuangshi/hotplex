@@ -9,8 +9,8 @@ import (
 	"sync"
 )
 
-// CORSConfig holds the allowed origins and API key for WebSocket CORS validation.
-type CORSConfig struct {
+// SecurityConfig holds the allowed origins and API key for WebSocket security validation.
+type SecurityConfig struct {
 	allowedOrigins map[string]bool
 	apiKeys        map[string]bool // Support multiple API keys
 	apiKeyEnabled  bool
@@ -33,12 +33,12 @@ var DefaultAllowedOrigins = []string{
 	"http://127.0.0.1:8080",
 }
 
-// NewCORSConfig creates a new CORSConfig from environment variables.
+// NewSecurityConfig creates a new SecurityConfig from environment variables.
 // - HOTPLEX_ALLOWED_ORIGINS: Comma-separated list of allowed origins (defaults to localhost)
 // - HOTPLEX_API_KEY: Single API key for authentication
 // - HOTPLEX_API_KEYS: Multiple API keys (comma-separated, takes precedence over HOTPLEX_API_KEY)
-func NewCORSConfig(logger *slog.Logger) *CORSConfig {
-	c := &CORSConfig{
+func NewSecurityConfig(logger *slog.Logger) *SecurityConfig {
+	c := &SecurityConfig{
 		allowedOrigins: make(map[string]bool),
 		apiKeys:        make(map[string]bool),
 		logger:         logger,
@@ -117,7 +117,7 @@ func parseAPIKeysFromEnv() []string {
 
 // CheckOrigin returns a function suitable for websocket.Upgrader.CheckOrigin.
 // It validates both Origin header and API key (if enabled).
-func (c *CORSConfig) CheckOrigin() func(r *http.Request) bool {
+func (c *SecurityConfig) CheckOrigin() func(r *http.Request) bool {
 	return func(r *http.Request) bool {
 		// Step 1: Validate API Key if enabled
 		if c.apiKeyEnabled && !c.validateAPIKey(r) {
@@ -152,7 +152,7 @@ func (c *CORSConfig) CheckOrigin() func(r *http.Request) bool {
 
 // validateAPIKey checks for a valid API key in the request.
 // Supports both X-API-Key header and api_key query parameter.
-func (c *CORSConfig) validateAPIKey(r *http.Request) bool {
+func (c *SecurityConfig) validateAPIKey(r *http.Request) bool {
 	// Try header first
 	apiKey := r.Header.Get("X-API-Key")
 
@@ -178,7 +178,7 @@ func (c *CORSConfig) validateAPIKey(r *http.Request) bool {
 }
 
 // AddOrigin adds a new allowed origin at runtime.
-func (c *CORSConfig) AddOrigin(origin string) {
+func (c *SecurityConfig) AddOrigin(origin string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.allowedOrigins[origin] = true
@@ -186,7 +186,7 @@ func (c *CORSConfig) AddOrigin(origin string) {
 }
 
 // RemoveOrigin removes an origin from the allowed list.
-func (c *CORSConfig) RemoveOrigin(origin string) {
+func (c *SecurityConfig) RemoveOrigin(origin string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	delete(c.allowedOrigins, origin)
@@ -194,7 +194,7 @@ func (c *CORSConfig) RemoveOrigin(origin string) {
 }
 
 // ListOrigins returns a copy of the current allowed origins.
-func (c *CORSConfig) ListOrigins() []string {
+func (c *SecurityConfig) ListOrigins() []string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -206,7 +206,7 @@ func (c *CORSConfig) ListOrigins() []string {
 }
 
 // AddAPIKey adds a new API key at runtime.
-func (c *CORSConfig) AddAPIKey(key string) {
+func (c *SecurityConfig) AddAPIKey(key string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.apiKeys[key] = true
@@ -215,7 +215,7 @@ func (c *CORSConfig) AddAPIKey(key string) {
 }
 
 // RemoveAPIKey removes an API key.
-func (c *CORSConfig) RemoveAPIKey(key string) {
+func (c *SecurityConfig) RemoveAPIKey(key string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	delete(c.apiKeys, key)
@@ -224,7 +224,7 @@ func (c *CORSConfig) RemoveAPIKey(key string) {
 }
 
 // IsAPIKeyEnabled returns whether API key authentication is enabled.
-func (c *CORSConfig) IsAPIKeyEnabled() bool {
+func (c *SecurityConfig) IsAPIKeyEnabled() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.apiKeyEnabled

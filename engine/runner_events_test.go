@@ -34,7 +34,11 @@ func TestEngine_dispatchCallback(t *testing.T) {
 		var receivedErr error
 		cb := func(eventType string, data any) error {
 			if eventType == "error" {
-				receivedErr = errors.New(data.(string))
+				if s, ok := data.(string); ok {
+					receivedErr = errors.New(s)
+				} else if e, ok := data.(error); ok {
+					receivedErr = e
+				}
 			}
 			return nil
 		}
@@ -420,7 +424,11 @@ func TestEngine_handleStreamRawLine(t *testing.T) {
 		var answerReceived string
 		cb := func(eventType string, data any) error {
 			if eventType == "answer" {
-				answerReceived = data.(string)
+				if s, ok := data.(string); ok {
+					answerReceived = s
+				} else if ev, ok := data.(*event.EventWithMeta); ok {
+					answerReceived = ev.EventData
+				}
 			}
 			return nil
 		}

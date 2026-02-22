@@ -54,12 +54,12 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
-func TestNewWebSocketHandler(t *testing.T) {
+func TestNewHotPlexWSHandler(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	engine := &mockEngine{}
-	cors := NewCORSConfig(logger)
+	cors := NewSecurityConfig(logger)
 
-	h := NewWebSocketHandler(engine, logger, cors)
+	h := NewHotPlexWSHandler(engine, logger, cors)
 
 	if h == nil {
 		t.Fatal("NewWebSocketHandler returned nil")
@@ -78,8 +78,8 @@ func TestNewWebSocketHandler(t *testing.T) {
 func TestWebSocketHandler_ServeHTTP_InvalidJSON(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	engine := &mockEngine{}
-	cors := NewCORSConfig(logger)
-	_ = NewWebSocketHandler(engine, logger, cors) // handler created but test uses manual upgrader
+	cors := NewSecurityConfig(logger)
+	_ = NewHotPlexWSHandler(engine, logger, cors) // handler created but test uses manual upgrader
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
@@ -132,11 +132,11 @@ func TestWebSocketHandler_ServeHTTP_InvalidJSON(t *testing.T) {
 	}
 }
 
-func TestWebSocketHandler_HandleExecute_EmptyPrompt(t *testing.T) {
+func TestHotPlexWSHandler_HandleExecute_EmptyPrompt(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	engine := &mockEngine{}
-	cors := NewCORSConfig(logger)
-	h := NewWebSocketHandler(engine, logger, cors)
+	cors := NewSecurityConfig(logger)
+	h := NewHotPlexWSHandler(engine, logger, cors)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
@@ -197,11 +197,11 @@ func TestWebSocketHandler_HandleExecute_EmptyPrompt(t *testing.T) {
 	}
 }
 
-func TestWebSocketHandler_HandleExecute_AutoSessionID(t *testing.T) {
+func TestHotPlexWSHandler_HandleExecute_AutoSessionID(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	engine := &mockEngine{}
-	cors := NewCORSConfig(logger)
-	_ = NewWebSocketHandler(engine, logger, cors) // handler created but test uses manual upgrader
+	cors := NewSecurityConfig(logger)
+	_ = NewHotPlexWSHandler(engine, logger, cors) // handler created but test uses manual upgrader
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
@@ -258,11 +258,11 @@ func TestWebSocketHandler_HandleExecute_AutoSessionID(t *testing.T) {
 	}
 }
 
-func TestWebSocketHandler_HandleStop_EmptySessionID(t *testing.T) {
+func TestHotPlexWSHandler_HandleStop_EmptySessionID(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	engine := &mockEngine{}
-	cors := NewCORSConfig(logger)
-	h := NewWebSocketHandler(engine, logger, cors)
+	cors := NewSecurityConfig(logger)
+	h := NewHotPlexWSHandler(engine, logger, cors)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
@@ -324,11 +324,11 @@ func TestWebSocketHandler_HandleStop_EmptySessionID(t *testing.T) {
 	}
 }
 
-func TestWebSocketHandler_UnknownRequestType(t *testing.T) {
+func TestHotPlexWSHandler_UnknownRequestType(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	engine := &mockEngine{}
-	cors := NewCORSConfig(logger)
-	h := NewWebSocketHandler(engine, logger, cors)
+	cors := NewSecurityConfig(logger)
+	h := NewHotPlexWSHandler(engine, logger, cors)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
@@ -511,11 +511,11 @@ func (m *mockErrorEngine) Execute(ctx context.Context, cfg *hotplex.Config, prom
 	return m.executeErr
 }
 
-func TestWebSocketHandler_HandleExecute_ExecuteError(t *testing.T) {
+func TestHotPlexWSHandler_HandleExecute_ExecuteError(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	engine := &mockErrorEngine{executeErr: context.DeadlineExceeded}
-	cors := NewCORSConfig(logger)
-	h := NewWebSocketHandler(engine, logger, cors)
+	cors := NewSecurityConfig(logger)
+	h := NewHotPlexWSHandler(engine, logger, cors)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
@@ -573,11 +573,11 @@ func TestWebSocketHandler_HandleExecute_ExecuteError(t *testing.T) {
 	}
 }
 
-func TestWebSocketHandler_HandleExecute_DefaultWorkDir(t *testing.T) {
+func TestHotPlexWSHandler_HandleExecute_DefaultWorkDir(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	engine := &mockEngine{}
-	cors := NewCORSConfig(logger)
-	h := NewWebSocketHandler(engine, logger, cors)
+	cors := NewSecurityConfig(logger)
+	h := NewHotPlexWSHandler(engine, logger, cors)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
@@ -640,11 +640,11 @@ func TestWebSocketHandler_HandleExecute_DefaultWorkDir(t *testing.T) {
 	}
 }
 
-func TestWebSocketHandler_HandleStop_DefaultReason(t *testing.T) {
+func TestHotPlexWSHandler_HandleStop_DefaultReason(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	engine := &mockEngine{}
-	cors := NewCORSConfig(logger)
-	h := NewWebSocketHandler(engine, logger, cors)
+	cors := NewSecurityConfig(logger)
+	h := NewHotPlexWSHandler(engine, logger, cors)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
@@ -704,11 +704,11 @@ func TestWebSocketHandler_HandleStop_DefaultReason(t *testing.T) {
 	}
 }
 
-func TestWebSocketHandler_HandleStop_WithReason(t *testing.T) {
+func TestHotPlexWSHandler_HandleStop_WithReason(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	engine := &mockEngine{}
-	cors := NewCORSConfig(logger)
-	h := NewWebSocketHandler(engine, logger, cors)
+	cors := NewSecurityConfig(logger)
+	h := NewHotPlexWSHandler(engine, logger, cors)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
