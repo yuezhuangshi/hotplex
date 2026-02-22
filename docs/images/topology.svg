@@ -123,8 +123,9 @@
   <path d="M 815 380 L 815 410" class="arrow" />
 
   <!-- Layer 2 to Layer 3 -->
-  <path d="M 185 550 L 185 645" class="arrow" marker-end="url(#arrowhead)"/>
-  <text x="195" y="595" class="text-code" style="fill:#0366d6">Process Fork &amp; PGID</text>
+  <!-- Process Fork line moved slightly right to avoid '3. OS Process...' title -->
+  <path d="M 185 550 L 185 590 L 300 590 L 300 645" class="arrow" marker-end="url(#arrowhead)"/>
+  <text x="310" y="595" class="text-code" style="fill:#0366d6">Process Fork &amp; PGID</text>
   
   <path d="M 815 550 L 815 645" class="arrow" marker-end="url(#arrowhead)"/>
   <text x="650" y="595" class="text-code" style="fill:#0366d6">Full-Duplex I/O Stream</text>
