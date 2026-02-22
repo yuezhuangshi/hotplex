@@ -124,9 +124,9 @@
 
   <!-- Layer 2 to Layer 3 -->
   <path d="M 395 550 L 395 645" class="arrow" marker-end="url(#arrowhead)"/>
-  <text x="405" y="605" class="text-code" style="fill:#0366d6">Process Fork &amp; PGID</text>
+  <text x="405" y="595" class="text-code" style="fill:#0366d6">Process Fork &amp; PGID</text>
   
   <path d="M 815 550 L 815 645" class="arrow" marker-end="url(#arrowhead)"/>
-  <text x="650" y="605" class="text-code" style="fill:#0366d6">Full-Duplex I/O Stream</text>
+  <text x="650" y="595" class="text-code" style="fill:#0366d6">Full-Duplex I/O Stream</text>
 
 </svg>
