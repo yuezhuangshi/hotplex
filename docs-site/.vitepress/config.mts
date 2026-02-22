@@ -4,7 +4,8 @@ export default defineConfig({
   title: 'HotPlex',
   description: 'Transforming AI CLI Agents into Production-Ready Interactive Services',
   lang: 'en-US',
-  
+  base: '/hotplex/',
+
   head: [
     ['link', { rel: 'icon', href: '/favicon.ico' }],
     ['meta', { name: 'theme-color', content: '#00ADD8' }],
@@ -13,7 +14,7 @@ export default defineConfig({
   themeConfig: {
     logo: '/logo.svg',
     siteTitle: 'HotPlex',
-    
+
     nav: [
       { text: 'Home', link: '/' },
       { text: 'Guide', link: '/guide/getting-started' },
