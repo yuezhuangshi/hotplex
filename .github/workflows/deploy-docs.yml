@@ -36,6 +36,8 @@ jobs:
       - name: Install dependencies
         working-directory: docs-site
         run: npm ci
+      - name: Sync documentation sources
+        run: make docs
 
       - name: Build with VitePress
         working-directory: docs-site

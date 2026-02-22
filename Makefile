@@ -20,10 +20,15 @@ BUILD_TIME    ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 LDFLAGS       := -s -w -X 'main.Version=$(VERSION)' -X 'main.Commit=$(COMMIT)' -X 'main.BuildTime=$(BUILD_TIME)'
 
-.PHONY: all help build build-all fmt vet test test-unit test-race test-integration test-all lint tidy clean install-hooks run
+.PHONY: all help build build-all fmt vet test test-unit test-race test-integration test-all lint tidy clean install-hooks run docs
 
 # Default target
 all: help
+
+docs: ## Synchronize SSOT Markdown sources into docs-site
+	@printf "${CYAN}📚 Synchronizing documentation sources...${NC}\n"
+	@chmod +x scripts/sync_docs.sh 2>/dev/null || true
+	@./scripts/sync_docs.sh
 
 ## 📋 Help: Show available commands
 help: ## Show this help message
