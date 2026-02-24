@@ -48,8 +48,11 @@ func NewAdapter(config Config, logger *slog.Logger, opts ...base.AdapterOption) 
 			BotToken: config.BotToken,
 		}, logger)
 
-		// Register message handler
+		// Register message handlers
+		// "message" handles DM and channel messages
 		a.socketMode.RegisterHandler("message", a.handleSocketModeEvent)
+		// "app_mention" handles @mentions in channels
+		a.socketMode.RegisterHandler("app_mention", a.handleSocketModeEvent)
 	}
 
 	handlers := make(map[string]http.HandlerFunc)
