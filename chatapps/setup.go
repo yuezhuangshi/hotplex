@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/hrygo/hotplex/chatapps/base"
@@ -135,6 +136,13 @@ func setupPlatform(
 		WithConfigLoader(loader),
 		WithLogger(logger),
 		WithWorkDirFn(func(sessionID string) string {
+			// Use work_dir from config if specified
+			if pc.Engine.WorkDir != "" {
+				// Expand ~ to home directory
+				workDir := expandPath(pc.Engine.WorkDir)
+				return workDir
+			}
+			// Default: use temp directory with platform/session isolation
 			return filepath.Join("/tmp/hotplex-chatapps", platform, sessionID)
 		}),
 	)
@@ -180,4 +188,79 @@ func createEngineForPlatform(pc *PlatformConfig, logger *slog.Logger) (*engine.E
 	}
 
 	return engine.NewEngine(opts)
+}
+
+// expandPath expands ~ to the user's home directory and cleans the path.
+// Supports both ~ and ~/path formats.
+// Returns an empty string if the path contains traversal attacks.
+func expandPath(path string) string {
+	if len(path) == 0 {
+		return path
+	}
+
+	// Handle ~ expansion
+	if path[0] == '~' {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return path // Return original path if home dir cannot be determined
+		}
+
+		if len(path) == 1 {
+			return homeDir
+		}
+
+		// Handle ~/path
+		if path[1] == '/' || path[1] == filepath.Separator {
+			return filepath.Join(homeDir, path[2:])
+		}
+
+		// Handle ~username/path (not commonly used, but supported)
+		return filepath.Join(homeDir, path[1:])
+	}
+
+	// Clean the path to resolve any . or .. elements
+	cleaned := filepath.Clean(path)
+
+	// Security check: detect path traversal attempts
+	// After cleaning, paths starting with / are absolute
+	// Paths starting with .. are attempting to escape the current directory
+	if strings.HasPrefix(cleaned, "/") {
+		// Absolute path - check for common system directories
+		if isSensitivePath(cleaned) {
+			return "" // Block access to sensitive paths
+		}
+	}
+
+	return cleaned
+}
+
+// isSensitivePath checks if a path points to a sensitive system location
+func isSensitivePath(path string) bool {
+	// List of sensitive directories to block
+	sensitivePrefixes := []string{
+		"/etc/",
+		"/etc",
+		"/var/",
+		"/var",
+		"/usr/",
+		"/usr",
+		"/bin",
+		"/sbin",
+		"/root",
+		"/proc/",
+		"/proc",
+		"/sys/",
+		"/sys",
+		"/boot",
+		"/dev/",
+		"/dev",
+	}
+
+	lowerPath := strings.ToLower(path)
+	for _, prefix := range sensitivePrefixes {
+		if strings.HasPrefix(lowerPath, prefix) {
+			return true
+		}
+	}
+	return false
 }

@@ -253,14 +253,19 @@ func (s *SocketModeConnection) readLoop() {
 // handleMessage processes incoming WebSocket messages
 func (s *SocketModeConnection) handleMessage(data []byte) {
 	var msg struct {
-		Type string          `json:"type"`
-		Body json.RawMessage `json:"body,omitempty"`
+		Type       string          `json:"type"`
+		EnvelopeID string          `json:"envelope_id,omitempty"`
+		Payload    json.RawMessage `json:"payload,omitempty"`
+		Body       json.RawMessage `json:"body,omitempty"` // fallback for some message types
 	}
 
 	if err := json.Unmarshal(data, &msg); err != nil {
 		s.logger.Error("Failed to parse message", "error", err)
 		return
 	}
+
+	// Log all incoming messages for debugging
+	s.logger.Debug("Received WebSocket message", "type", msg.Type, "envelope_id", msg.EnvelopeID)
 
 	switch msg.Type {
 	case "hello":
@@ -273,7 +278,18 @@ func (s *SocketModeConnection) handleMessage(data []byte) {
 		s.mu.Unlock()
 		go s.reconnect()
 
+	case "events_api":
+		// Socket Mode uses "events_api" with "payload" field
+		// payload contains the full event_callback structure
+		s.logger.Debug("events_api received", "envelope_id", msg.EnvelopeID, "payload_len", len(msg.Payload))
+		if len(msg.Payload) > 0 {
+			s.handleEventsAPI(msg.Payload, msg.EnvelopeID)
+		} else {
+			s.logger.Warn("events_api with empty payload", "raw_message", string(data))
+		}
+
 	case "event_callback":
+		// Fallback for HTTP webhook compatibility
 		s.handleEventCallback(msg.Body)
 
 	case "ping":
@@ -283,35 +299,94 @@ func (s *SocketModeConnection) handleMessage(data []byte) {
 		// Keep-alive acknowledged
 
 	default:
-		s.logger.Debug("Unknown message type", "type", msg.Type)
+		s.logger.Warn("Unknown message type", "type", msg.Type)
 	}
 }
 
 // handleEventCallback processes event_callback messages
 func (s *SocketModeConnection) handleEventCallback(body json.RawMessage) {
-	var event struct {
+	var eventCallback struct {
 		Type   string          `json:"type"`
 		Event  json.RawMessage `json:"event,omitempty"`
 		Hidden bool            `json:"hidden,omitempty"`
 	}
 
-	if err := json.Unmarshal(body, &event); err != nil {
+	if err := json.Unmarshal(body, &eventCallback); err != nil {
 		s.logger.Error("Failed to parse event callback", "error", err)
 		return
 	}
 
-	if event.Event == nil {
+	if eventCallback.Event == nil {
 		return
 	}
 
-	// Call registered handler if exists
+	// Parse the inner event to get its type
+	var innerEvent struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(eventCallback.Event, &innerEvent); err != nil {
+		s.logger.Error("Failed to parse inner event", "error", err)
+		return
+	}
+
+	// Call registered handler if exists, using the inner event type
 	s.mu.RLock()
-	handler, exists := s.handlers[event.Type]
+	handler, exists := s.handlers[innerEvent.Type]
 	s.mu.RUnlock()
 
-	if exists && !event.Hidden {
-		handler(event.Type, event.Event)
+	if exists && !eventCallback.Hidden {
+		handler(innerEvent.Type, eventCallback.Event)
 	}
+}
+
+// handleEventsAPI processes events_api messages (Socket Mode format)
+// The payload contains the event_callback structure directly
+func (s *SocketModeConnection) handleEventsAPI(payload json.RawMessage, envelopeID string) {
+	if len(payload) == 0 {
+		s.logger.Warn("Empty payload in events_api message")
+		return
+	}
+
+	// Send ACK to Slack to confirm receipt of the event
+	// Slack expects a response with the envelope_id within 3 seconds
+	if envelopeID != "" {
+		if err := s.sendACKWithRetry(envelopeID, 3, 1*time.Second); err != nil {
+			s.logger.Error("Failed to send ACK after retries", "envelope_id", envelopeID, "error", err)
+		} else {
+			s.logger.Debug("Sent ACK for envelope", "envelope_id", envelopeID)
+		}
+	}
+
+	// The payload IS the event_callback structure, pass it directly
+	s.handleEventCallback(payload)
+}
+
+// sendACKWithRetry sends an ACK with exponential backoff retry
+// maxRetries: maximum number of retry attempts
+// baseDelay: initial delay between retries
+func (s *SocketModeConnection) sendACKWithRetry(envelopeID string, maxRetries int, baseDelay time.Duration) error {
+	ack := map[string]any{
+		"envelope_id": envelopeID,
+	}
+
+	var lastErr error
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			// Exponential backoff: delay = baseDelay * 2^(attempt-1)
+			delay := baseDelay * time.Duration(1<<(attempt-1))
+			s.logger.Debug("Retrying ACK send", "envelope_id", envelopeID, "attempt", attempt, "delay", delay)
+			time.Sleep(delay)
+		}
+
+		if err := s.Send(ack); err != nil {
+			lastErr = err
+			s.logger.Warn("ACK send attempt failed", "envelope_id", envelopeID, "attempt", attempt+1, "maxRetries", maxRetries+1, "error", err)
+			continue
+		}
+		return nil // Success
+	}
+
+	return fmt.Errorf("ACK send failed after %d attempts: %w", maxRetries+1, lastErr)
 }
 
 // sendPong sends a pong response to keep the connection alive
