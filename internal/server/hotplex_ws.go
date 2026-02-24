@@ -35,8 +35,9 @@ type ServerResponse struct {
 // gorilla/websocket does NOT support concurrent WriteMessage calls;
 // this wrapper serializes all writes to the connection.
 type connWriter struct {
-	conn *websocket.Conn
-	mu   sync.Mutex
+	conn   *websocket.Conn
+	mu     sync.Mutex
+	logger *slog.Logger
 }
 
 func (cw *connWriter) writeJSON(event string, data any, requestID int) {
@@ -46,12 +47,13 @@ func (cw *connWriter) writeJSON(event string, data any, requestID int) {
 	}
 	val, err := json.Marshal(resp)
 	if err != nil {
-		// This should rarely happen with our internal types, but log it for enterprise observability
 		return
 	}
 	cw.mu.Lock()
 	defer cw.mu.Unlock()
-	_ = cw.conn.WriteMessage(websocket.TextMessage, val)
+	if err := cw.conn.WriteMessage(websocket.TextMessage, val); err != nil && cw.logger != nil {
+		cw.logger.Debug("WebSocket write error", "error", err)
+	}
 }
 
 // HotPlexWSHandler manages a WebSocket connection to a HotPlex Engine.
@@ -88,11 +90,11 @@ func (h *HotPlexWSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Create a top-level context for the entire connection lifecycle
 	connCtx, connCancel := context.WithCancel(r.Context())
-	defer connCancel() // Cancels all child tasks when connection closes
+	defer connCancel()
 
 	defer func() { _ = conn.Close() }()
 
-	cw := &connWriter{conn: conn}
+	cw := &connWriter{conn: conn, logger: h.logger}
 
 	// Track active tasks for this specific connection to allow concurrent 'stop'
 	tasks := make(map[string]context.CancelFunc)

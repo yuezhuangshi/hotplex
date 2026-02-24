@@ -1,20 +1,21 @@
-# 🤖 AI Agent Guidelines for hotplex (AGENT.md)
+# 🤖 AI Agent Guidelines for hotplex
 
-Welcome, AI Developer! This document serves as the top-level context and operational boundary for any AI Agent (like Claude Code, OpenCode, or Antigravity) working on the **hotplex** codebase. 
+Welcome, AI Developer! This document serves as the top-level context and operational boundary for any AI Agent (like Claude Code, OpenCode, or Antigravity) working on the **hotplex** codebase.
 
 Please read and strictly adhere to the following rules when analyzing, modifying, or creating code in this project.
 
 ---
 
-## 🏗 1. Project Overview & Identity
+## 1. Project Overview
 
 **hotplex** is a high-performance **AI Agent Control Plane**.
+
 - **First Principle**: Instead of reinventing the wheel, we leverage existing, powerful AI CLI agents (like Claude Code, OpenCode) and bridge them into production-ready systems by converting them into long-lived, interactive services (**Cli-as-a-Service**).
 - **Core Role**: It provides a production-ready execution environment for AI agents, eliminating the continuous spin-up overhead of headless CLI mode and providing a unified control layer for security, state, and streaming.
 - **Primary Language**: Go (Golang) 1.24
 - **Architecture**: A lightweight Gateway (WebSocket) wrapping a Core Engine (`hotplex.Engine`), a persistence layer (`internal/engine/pool.go`), and a strict Regex WAF (`internal/security/detector.go`).
 
-### 📍 Repository
+### Repository
 
 - **GitHub**: https://github.com/hrygo/hotplex
 - **Owner**: `hrygo`
@@ -22,55 +23,61 @@ Please read and strictly adhere to the following rules when analyzing, modifying
 
 ---
 
-## 📜 2. Strict Coding Rules (SOLID & DRY)
+## 2. Coding Standards
+
+### 2.1 SOLID & DRY Principles
 
 When writing or refactoring Go code in HotPlex, you must enforce the following:
 
-1.  **Single Responsibility Principle (SRP)**:
-    - Never dump mixed responsibilities into one struct or file.
-    - Example: `runner.go` should only bridge I/O and OS processes. Session lifecycle belongs in `internal/engine/pool.go`. Danger detection belongs in `internal/security/detector.go`.
-2.  **Concurrency Safety First**:
-    - **Never** read/write to `SessionPool` maps without holding the appropriate `sync.RWMutex`.
-    - Always use `defer mu.Unlock()` immediately after acquiring a lock.
-    - Be hyper-aware of Deadlocks. Do not trigger callbacks that might re-enter a locked section.
-3.  **Process Lifecycle & Zombie Prevention**:
-    - Any OS Process created *must* be assigned a Process Group ID (PGID) via `SysProcAttr{Setpgid: true}`.
-    - We kill processes by sending `SIGKILL` to `-PGID`, never just the PID, to ensure no orphan Node.js/Python processes leak.
-4.  **Error Handling**:
-    - Do not use `panic()` in the core engine. Return `error` explicitly.
-    - Wrap errors with context: `fmt.Errorf("failed to start session %s: %w", sessionID, err)`.
-5.  **Logging**:
-    - Use `log/slog`.
-    - Always include structured context: `logger.Info("session started", "session_id", sessionID)`.
+1. **Single Responsibility Principle (SRP)**:
+   - Never dump mixed responsibilities into one struct or file.
+   - Example: `runner.go` should only bridge I/O and OS processes. Session lifecycle belongs in `internal/engine/pool.go`. Danger detection belongs in `internal/security/detector.go`.
 
----
+2. **Concurrency Safety First**:
+   - **Never** read/write to `SessionPool` maps without holding the appropriate `sync.RWMutex`.
+   - Always use `defer mu.Unlock()` immediately after acquiring a lock.
+   - Be hyper-aware of Deadlocks. Do not trigger callbacks that might re-enter a locked section.
 
-## 📚 2.5 Uber Go Style Guide (Reference)
-HotPlex follows the [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md). 
+3. **Process Lifecycle & Zombie Prevention**:
+   - Any OS Process created *must* be assigned a Process Group ID (PGID) via `SysProcAttr{Setpgid: true}`.
+   - We kill processes by sending `SIGKILL` to `-PGID`, never just the PID, to ensure no orphan Node.js/Python processes leak.
+
+4. **Error Handling**:
+   - Do not use `panic()` in the core engine. Return `error` explicitly.
+   - Wrap errors with context: `fmt.Errorf("failed to start session %s: %w", sessionID, err)`.
+
+5. **Logging**:
+   - Use `log/slog`.
+   - Always include structured context: `logger.Info("session started", "session_id", sessionID)`.
+
+### 2.2 Uber Go Style Guide
+
+HotPlex follows the [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md).
+
 See **[docs/uber-go-style-guide.md](docs/uber-go-style-guide.md)** for the TOP 18 critical guidelines with examples.
 
 **Quick Reference — Must Follow:**
 
-| Category        | Key Rules                                                                                                          |
-| --------------- | ------------------------------------------------------------------------------------------------------------------ |
-| **Concurrency** | Zero-value mutexes • Defer cleanup • Channel size 0/1 • No fire-and-forget goroutines • Use `go.uber.org/atomic`   |
-| **Errors**      | Never panic • Static errors via `var` • Wrap with `%w` • Handle errors once • Safe type assertions                 |
-| **Quality**     | Verify interface compliance • No pointers to interfaces • Dependency injection • Use `time.Duration` • Consistency |
+| Category     | Key Rules                                                                                                         |
+|--------------|------------------------------------------------------------------------------------------------------------------|
+| **Concurrency** | Zero-value mutexes • Defer cleanup • Channel size 0/1 • No fire-and-forget goroutines • Use `go.uber.org/atomic` |
+| **Errors**   | Never panic • Static errors via `var` • Wrap with `%w` • Handle errors once • Safe type assertions               |
+| **Quality**  | Verify interface compliance • No pointers to interfaces • Dependency injection • Use `time.Duration` • Consistency |
 
 ---
 
-## 🔒 3. Security Boundaries (Zero-Trust)
+## 3. Security Boundaries
 
 HotPlex executes LLM-generated Shell commands on the host machine. **Security is the top priority.**
 
-1.  **Do Not Bypass `Detector`**: Never write code that allows user prompts or AI commands to reach `Stdin` without first passing through `CheckInput()` in `internal/security/detector.go`.
-2.  **Native Capability Governance**: Prioritize native tool restrictions (`AllowedTools` in `EngineOptions`) over file path interception. This leverages the CLI's internal sandbox for more reliable enforcement.
-3.  **Filesystem Isolation**: The agent's `WorkDir` is holy. Ensure the CLI is initialized with the correct working directory to leverage its native path restrictions.
-4.  **No Eval/Shell Hacks**: Do not use `sh -c` or `bash -c` unless strictly necessary and sanitized. Stick to direct binary execution via `os/exec` where possible.
+1. **Do Not Bypass `Detector`**: Never write code that allows user prompts or AI commands to reach `Stdin` without first passing through `CheckInput()` in `internal/security/detector.go`.
+2. **Native Capability Governance**: Prioritize native tool restrictions (`AllowedTools` in `EngineOptions`) over file path interception. This leverages the CLI's internal sandbox for more reliable enforcement.
+3. **Filesystem Isolation**: The agent's `WorkDir` is holy. Ensure the CLI is initialized with the correct working directory to leverage its native path restrictions.
+4. **No Eval/Shell Hacks**: Do not use `sh -c` or `bash -c` unless strictly necessary and sanitized. Stick to direct binary execution via `os/exec` where possible.
 
 ---
 
-## 📁 4. Architecture Map
+## 4. Architecture Map
 
 When looking for where to make changes, follow this map:
 
@@ -85,11 +92,11 @@ When looking for where to make changes, follow this map:
   - `factory.go`: Global factory for creating `claude`, `opencode`, and other CLI-based providers.
   - `event.go`: Unified event protocol (`ProviderEventType`) for standardized streaming.
 - **ChatApps Layer (`chatapps/`)**:
-  - **Bridge**: `engine_handler.go` - Standardizes AI events into technical keys for cross-platform consumption.
-  - **Management**: `manager.go` - Controls the lifecycle (start/stop) of all bot adapters.
-  - **Initialization**: `setup.go` - Unified entry point to boot multi-platform bots based on YAML configs.
-  - **Adapters**: `telegram/`, `discord/`, `slack/`, etc. - Native platform-specific webhooks and messaging.
-  - **Configs**: `configs/*.yaml` - Tailored system prompts and platform-specific behavioral tuning.
+  - `engine_handler.go`: Standardizes AI events into technical keys for cross-platform consumption.
+  - `manager.go`: Controls the lifecycle (start/stop) of all bot adapters.
+  - `setup.go`: Unified entry point to boot multi-platform bots based on YAML configs.
+  - **Adapters**: `telegram/`, `discord/`, `slack/`, etc.
+  - **Configs**: `configs/*.yaml`
 - **Internal Core (`internal/engine/`)**:
   - `pool.go`: `SessionPool` manages process hot-multiplexing, GC, and concurrency safety.
   - `session.go`: OS process piping, PGID management, and low-level I/O state machines.
@@ -106,7 +113,22 @@ When looking for where to make changes, follow this map:
 
 ---
 
-## 🛠 5. Testing Requirements
+## 5. Reference
+
+### 5.1 OpenClaw (Local)
+
+When needing to reference or learn from OpenClaw's implementation, the source code is available locally:
+
+- **Path**: `/Users/huangzhonghui/openclaw`
+- **Usage**: Read directly using the `Read` tool when implementing similar features or understanding patterns.
+- **Note**: OpenClaw is the upstream project that HotPlex builds upon. Use it as a reference for:
+  - Provider implementation patterns
+  - Event parsing logic
+  - CLI session management
+
+---
+
+## 6. Testing Requirements
 
 - **No Code Without Tests**: If you add a feature, you must add a unit test in the corresponding `_test.go` file.
 - **Mock Heavy I/O**: Do not write tests that actually spawn `npx @anthropic-ai/claude-code` unless it is explicitly an E2E test. Use echo/cat dummy shell scripts to mock the CLI in unit tests.
@@ -114,11 +136,12 @@ When looking for where to make changes, follow this map:
 
 ---
 
-## 🚀 6. Action Mode Trigger (For AI)
+## 7. Action Mode Trigger
 
 If the USER asks you to `[Implement]`, `[Extend]`, or `[Fix]` something in HotPlex:
-1.  **Acknowledge**: Briefly state the plan.
-2.  **Verify**: Check this `AGENT.md` for architectural constraints.
-3.  **Execute**: Write the code, ensuring concurrency locks and PGID rules are respected.
-4.  **Validate**: Ensure it builds (`go build ./...`).
-5.  **GitHub Operations**: Prioritize using the `gh` command or MCP tools for any GitHub-related actions (Releases, PRs, Runs, Issues).
+
+1. **Acknowledge**: Briefly state the plan.
+2. **Verify**: Check this `AGENT.md` for architectural constraints.
+3. **Execute**: Write the code, ensuring concurrency locks and PGID rules are respected.
+4. **Validate**: Ensure it builds (`go build ./...`).
+5. **GitHub Operations**: Prioritize using the `gh` command or MCP tools for any GitHub-related actions (Releases, PRs, Runs, Issues).

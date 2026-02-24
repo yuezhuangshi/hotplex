@@ -167,8 +167,8 @@ func (r *Engine) GetSessionStats(sessionID string) *SessionStats {
 		return nil
 	}
 	if sess, ok := r.manager.GetSession(sessionID); ok {
-		if ext := sess.GetExt(); ext != nil {
-			stats := ext.(*SessionStats)
+		ext := sess.GetExt()
+		if stats, ok := ext.(*SessionStats); ok {
 			return stats.FinalizeDuration()
 		}
 	}
@@ -227,7 +227,18 @@ func (r *Engine) executeWithMultiplex(
 	// Initialize or fetch persistent SessionStats
 	var stats *SessionStats
 	if ext := sess.GetExt(); ext != nil {
-		stats = ext.(*SessionStats)
+		if s, ok := ext.(*SessionStats); ok {
+			stats = s
+		} else {
+			// Type mismatch, create new stats
+			stats = &SessionStats{
+				SessionID: cfg.SessionID,
+				StartTime: time.Now(),
+				ToolsUsed: make(map[string]bool),
+				FilePaths: make([]string, 0),
+			}
+			sess.SetExt(stats)
+		}
 	} else {
 		stats = &SessionStats{
 			SessionID: cfg.SessionID,
