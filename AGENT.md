@@ -58,11 +58,15 @@ See **[docs/uber-go-style-guide.md](docs/uber-go-style-guide.md)** for the TOP 1
 
 **Quick Reference — Must Follow:**
 
-| Category        | Key Rules                                                                                                          |
-| --------------- | ------------------------------------------------------------------------------------------------------------------ |
-| **Concurrency** | Zero-value mutexes • Defer cleanup • Channel size 0/1 • No fire-and-forget goroutines • Use `go.uber.org/atomic`   |
-| **Errors**      | Never panic • Static errors via `var` • Wrap with `%w` • Handle errors once • Safe type assertions                 |
 | **Quality**     | Verify interface compliance • No pointers to interfaces • Dependency injection • Use `time.Duration` • Consistency |
+
+### 2.3 Linter & Code Integrity
+
+Linter errors (like `unused`) are signals of **incomplete integration**, not junk to be deleted.
+
+1. **No Lazy Deletions**: Never delete newly implemented logic or existing helpful code just to silence a linter error (e.g., `unused`). 
+2. **Fix the Root Cause**: If a function is `unused`, it's an indicator that you forgot to link it to the main execution flow. Integrate it properly instead of removing it.
+3. **Draft Preservation**: If code is truly meant as a draft/extension for the future and cannot be linked yet, use `//nolint:unused` with a clear explanation rather than deleting it.
 
 ---
 
@@ -146,6 +150,7 @@ When needing to reference or learn from OpenClaw's implementation, the source co
    - Use `git stash` to safely move user work aside before performing maintenance.
 3. **The "Checkpointed" Rule**: Encourage the user to `git add` or `git commit` frequently. Even if not committed, `git add` creates a "blob" that can be recovered with `git fsck --lost-found`.
 4. **Micro-Commit Strategy**: Proactively suggest committing (or offer to do it) after completing a logically independent unit of work.
+5. **Integrity over Silence**: NEVER delete functional code or complex logic just to pass a "pre-push" linter check. A linter warning is a prompt for **integration**, not a command for **destruction**.
 
 ---
 
