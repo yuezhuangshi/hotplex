@@ -168,21 +168,6 @@ func (p *OpenCodeProvider) BuildCLIArgs(providerSessionID string, opts *Provider
 	return args
 }
 
-// BuildEnvVars constructs environment variables for OpenCode.
-func (p *OpenCodeProvider) BuildEnvVars(opts *ProviderSessionOptions) []string {
-	env := []string{}
-
-	// Add extra environment variables from config
-	for k, v := range p.opts.ExtraEnv {
-		env = append(env, fmt.Sprintf("%s=%s", k, v))
-	}
-
-	// OpenCode-specific environment variables
-	// OPENCODE_PROVIDER, OPENCODE_MODEL can be used as alternatives
-
-	return env
-}
-
 // BuildInputMessage constructs the input for OpenCode.
 // Note: OpenCode typically takes the prompt as a CLI argument, not stdin.
 // For multi-turn sessions, this method may be used differently.
@@ -370,15 +355,6 @@ func (p *OpenCodeProvider) DetectTurnEnd(event *ProviderEvent) bool {
 	}
 
 	return false
-}
-
-// ExtractSessionID extracts session ID from OpenCode events.
-func (p *OpenCodeProvider) ExtractSessionID(event *ProviderEvent) string {
-	// If the event has a session ID
-	if event.SessionID != "" {
-		return event.SessionID
-	}
-	return ""
 }
 
 // ValidateBinary checks if the OpenCode CLI is available.

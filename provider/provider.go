@@ -40,10 +40,6 @@ type Provider interface {
 	// provider-specific persistent session identifier (e.g., Claude's --session-id).
 	BuildCLIArgs(providerSessionID string, opts *ProviderSessionOptions) []string
 
-	// BuildEnvVars constructs environment variables for the CLI process.
-	// Returns additional environment variables to be merged with os.Environ().
-	BuildEnvVars(opts *ProviderSessionOptions) []string
-
 	// BuildInputMessage constructs the stdin message payload for sending user input.
 	// This handles provider-specific input formatting (e.g., stream-json for Claude).
 	BuildInputMessage(prompt string, taskInstructions string) (map[string]any, error)
@@ -59,15 +55,8 @@ type Provider interface {
 	// - OpenCode: step-finish or specific completion marker
 	DetectTurnEnd(event *ProviderEvent) bool
 
-	// ExtractSessionID extracts the provider-specific session ID from CLI output.
-	// This is used during session startup to capture persistent session identifiers.
-	ExtractSessionID(event *ProviderEvent) string
-
 	// ValidateBinary checks if the CLI binary is available and returns its path.
 	ValidateBinary() (string, error)
-
-	// GetVersion returns the CLI version string.
-	GetVersion() (string, error)
 
 	// Name returns the provider name for logging and identification.
 	Name() string
@@ -226,18 +215,4 @@ func (p *ProviderBase) ValidateBinary() (string, error) {
 		return p.binaryPath, nil
 	}
 	return exec.LookPath(p.meta.BinaryName)
-}
-
-// GetVersion returns the CLI version by executing --version.
-func (p *ProviderBase) GetVersion() (string, error) {
-	path, err := p.ValidateBinary()
-	if err != nil {
-		return "", fmt.Errorf("validate binary: %w", err)
-	}
-	cmd := exec.Command(path, "--version")
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("get version: %w", err)
-	}
-	return string(output), nil
 }

@@ -7,12 +7,12 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hrygo/hotplex/internal/persistence"
 	"github.com/hrygo/hotplex/internal/sys"
 	"github.com/hrygo/hotplex/provider"
 )
@@ -30,7 +30,7 @@ type SessionPool struct {
 	provider     provider.Provider
 	done         chan struct{} // Internal signal for shutting down background workers
 	shutdownOnce sync.Once     // Ensures Shutdown is only executed once
-	markerDir    string        // Local filesystem path storing session persistence markers
+	markerStore  persistence.SessionMarkerStore
 	pending      map[string]chan struct{}
 }
 
@@ -75,32 +75,22 @@ func buildSafeEnv() []string {
 	return safeEnv
 }
 
-// NewSessionPool creates a new session manager.
+// NewSessionPool creates a new session manager with default file-based marker storage.
 func NewSessionPool(logger *slog.Logger, timeout time.Duration, opts EngineOptions, cliPath string, prv provider.Provider) *SessionPool {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	// Initialize Marker Directory
-	homeDir, err := os.UserHomeDir()
-	var markerDir string
-	if err == nil {
-		markerDir = filepath.Join(homeDir, ".hotplex", "sessions")
-		os.MkdirAll(markerDir, 0755) //nolint:errcheck // best effort
-	} else {
-		markerDir = filepath.Join(os.TempDir(), "hotplex_sessions")
-		os.MkdirAll(markerDir, 0755) //nolint:errcheck // fallback
-	}
 
 	sm := &SessionPool{
-		sessions:  make(map[string]*Session),
-		logger:    logger,
-		timeout:   timeout,
-		opts:      opts,
-		cliPath:   cliPath,
-		provider:  prv,
-		done:      make(chan struct{}),
-		markerDir: markerDir,
-		pending:   make(map[string]chan struct{}),
+		sessions:    make(map[string]*Session),
+		logger:      logger,
+		timeout:     timeout,
+		opts:        opts,
+		cliPath:     cliPath,
+		provider:    prv,
+		done:        make(chan struct{}),
+		markerStore: persistence.NewDefaultFileMarkerStore(),
+		pending:     make(map[string]chan struct{}),
 	}
 
 	// Start idle session cleanup goroutine
@@ -347,15 +337,14 @@ func (sm *SessionPool) buildCLIArgs(providerSessionID string, sessLog *slog.Logg
 		SessionID:        providerSessionID,
 	}
 
-	// Check if we need to resume
-	markerPath := filepath.Join(sm.markerDir, providerSessionID+".lock")
-	if _, err := os.Stat(markerPath); err == nil {
+	// Check if we need to resume using marker store
+	if sm.markerStore.Exists(providerSessionID) {
 		opts.ResumeSession = true
 		opts.ProviderSessionID = providerSessionID
 		sessLog.Info("Resuming existing persistent CLI session")
 	} else {
 		opts.ProviderSessionID = providerSessionID
-		_ = os.WriteFile(markerPath, []byte(""), 0644)
+		_ = sm.markerStore.Create(providerSessionID)
 		sessLog.Info("Creating new persistent CLI session")
 	}
 

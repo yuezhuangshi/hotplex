@@ -383,81 +383,74 @@ func extractCommand(input string, pattern *regexp.Regexp) string {
 	return strutil.Truncate(input, MaxDisplayLength)
 }
 
-// getSuggestions returns safe alternatives for the dangerous operation category.
+var categorySuggestions = map[string][]string{
+	"file_delete": {
+		"Use 'rm -i' for interactive deletion with confirmation",
+		"Consider moving files to a temporary backup directory first",
+		"Use 'git status' to check what would be affected",
+	},
+	"git": {
+		"Use 'git status' to check current changes",
+		"Use 'git stash' to temporarily save changes",
+		"Consider 'git checkout -- <file>' for single file recovery",
+	},
+	"network": {
+		"Download scripts to a temp directory first for review",
+		"Use 'curl -sL <url> | less' to inspect before executing",
+		"Verify the source and checksum before execution",
+	},
+	"system": {
+		"Ensure you have a recent backup before proceeding",
+		"Test commands in a container or VM first",
+		"Review the command documentation carefully",
+	},
+	"database": {
+		"Use 'BEGIN; <query>; ROLLBACK;' to test first",
+		"Create a database backup before running DDL/DML",
+		"Use WHERE clause carefully to limit scope",
+	},
+	"injection": {
+		"Avoid command substitution in user-provided input",
+		"Use proper input validation and sanitization",
+		"Consider using safer alternatives to eval/exec",
+	},
+	"privilege": {
+		"Use least privilege principle",
+		"Consider if the operation really needs elevated permissions",
+		"Use sudo with specific command allowlist",
+	},
+	"persistence": {
+		"Document any persistence mechanisms you add",
+		"Consider temporary alternatives",
+		"Review security implications of auto-start services",
+	},
+	"recon": {
+		"Use authorized access methods only",
+		"Log and audit sensitive file access",
+		"Consider if the information is necessary for the task",
+	},
+	"container": {
+		"Avoid privileged containers in production",
+		"Use dedicated security contexts",
+		"Review container security best practices",
+	},
+	"kernel": {
+		"Kernel module changes require extreme caution",
+		"Use signed kernel modules when possible",
+		"Document and audit any kernel modifications",
+	},
+}
+
+var defaultSuggestions = []string{
+	"Consider if there's a safer alternative",
+	"Ensure you have a backup before proceeding",
+}
+
 func getSuggestions(category string) []string {
-	switch category {
-	case "file_delete":
-		return []string{
-			"Use 'rm -i' for interactive deletion with confirmation",
-			"Consider moving files to a temporary backup directory first",
-			"Use 'git status' to check what would be affected",
-		}
-	case "git":
-		return []string{
-			"Use 'git status' to check current changes",
-			"Use 'git stash' to temporarily save changes",
-			"Consider 'git checkout -- <file>' for single file recovery",
-		}
-	case "network":
-		return []string{
-			"Download scripts to a temp directory first for review",
-			"Use 'curl -sL <url> | less' to inspect before executing",
-			"Verify the source and checksum before execution",
-		}
-	case "system":
-		return []string{
-			"Ensure you have a recent backup before proceeding",
-			"Test commands in a container or VM first",
-			"Review the command documentation carefully",
-		}
-	case "database":
-		return []string{
-			"Use 'BEGIN; <query>; ROLLBACK;' to test first",
-			"Create a database backup before running DDL/DML",
-			"Use WHERE clause carefully to limit scope",
-		}
-	case "injection":
-		return []string{
-			"Avoid command substitution in user-provided input",
-			"Use proper input validation and sanitization",
-			"Consider using safer alternatives to eval/exec",
-		}
-	case "privilege":
-		return []string{
-			"Use least privilege principle",
-			"Consider if the operation really needs elevated permissions",
-			"Use sudo with specific command allowlist",
-		}
-	case "persistence":
-		return []string{
-			"Document any persistence mechanisms you add",
-			"Consider temporary alternatives",
-			"Review security implications of auto-start services",
-		}
-	case "recon":
-		return []string{
-			"Use authorized access methods only",
-			"Log and audit sensitive file access",
-			"Consider if the information is necessary for the task",
-		}
-	case "container":
-		return []string{
-			"Avoid privileged containers in production",
-			"Use dedicated security contexts",
-			"Review container security best practices",
-		}
-	case "kernel":
-		return []string{
-			"Kernel module changes require extreme caution",
-			"Use signed kernel modules when possible",
-			"Document and audit any kernel modifications",
-		}
-	default:
-		return []string{
-			"Consider if there's a safer alternative",
-			"Ensure you have a backup before proceeding",
-		}
+	if suggestions, ok := categorySuggestions[category]; ok {
+		return suggestions
 	}
+	return defaultSuggestions
 }
 
 // SetAllowPaths sets the list of allowed safe paths.

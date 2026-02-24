@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"os"
 	"os/exec"
 	"testing"
 	"time"
@@ -168,17 +167,16 @@ func TestSessionPool_buildCLIArgs_Resume(t *testing.T) {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
 
-	// Create pool with marker directory
+	// Create pool with marker store
 	pool := NewSessionPool(logger, 30*time.Minute, EngineOptions{
 		Namespace: "test",
 	}, "/tmp/claude", prv)
 
-	// Create a marker file to simulate existing session
-	markerPath := pool.markerDir + "/existing-session.lock"
-	if err := os.WriteFile(markerPath, []byte(""), 0644); err != nil {
-		t.Fatalf("Failed to create marker file: %v", err)
+	// Create a marker to simulate existing session
+	if err := pool.markerStore.Create("existing-session"); err != nil {
+		t.Fatalf("Failed to create marker: %v", err)
 	}
-	defer func() { _ = os.Remove(markerPath) }()
+	defer func() { _ = pool.markerStore.Delete("existing-session") }()
 
 	args := pool.buildCLIArgs("existing-session", logger, "unit test resume prompt", "")
 

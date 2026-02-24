@@ -15,6 +15,9 @@ const (
 	VersionPatch = 3
 )
 
+// Compile-time interface verification
+var _ HotPlexClient = (*Engine)(nil)
+
 // ===== Engine Types =====
 
 // Engine is the core Control Plane for AI CLI agent integration.

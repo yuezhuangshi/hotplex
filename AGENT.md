@@ -45,6 +45,20 @@ When writing or refactoring Go code in HotPlex, you must enforce the following:
 
 ---
 
+## 📚 2.5 Uber Go Style Guide (Reference)
+HotPlex follows the [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md). 
+See **[docs/uber-go-style-guide.md](docs/uber-go-style-guide.md)** for the TOP 18 critical guidelines with examples.
+
+**Quick Reference — Must Follow:**
+
+| Category        | Key Rules                                                                                                          |
+| --------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **Concurrency** | Zero-value mutexes • Defer cleanup • Channel size 0/1 • No fire-and-forget goroutines • Use `go.uber.org/atomic`   |
+| **Errors**      | Never panic • Static errors via `var` • Wrap with `%w` • Handle errors once • Safe type assertions                 |
+| **Quality**     | Verify interface compliance • No pointers to interfaces • Dependency injection • Use `time.Duration` • Consistency |
+
+---
+
 ## 🔒 3. Security Boundaries (Zero-Trust)
 
 HotPlex executes LLM-generated Shell commands on the host machine. **Security is the top priority.**
@@ -61,27 +75,34 @@ HotPlex executes LLM-generated Shell commands on the host machine. **Security is
 When looking for where to make changes, follow this map:
 
 - **Public SDK (`/`)**:
-  - `hotplex.go`: Main entry point with public aliases.
-  - `client.go`: Client interface definitions.
+  - `hotplex.go`: Main entry point with public aliases and engine initialization.
+  - `client.go`: High-level client interface definitions for SDK users.
+  - `cmd/hotplexd/`: Entry point for the HotPlex proxy server with `.env` and graceful shutdown logic.
 - **Engine Layer (`engine/`)**:
-  - `runner.go`: The `Engine` singleton. High-level API orchestration.
+  - `runner.go`: The `Engine` singleton. Handles session orchestration, event bridging, and I/O multiplexing.
 - **Provider Layer (`provider/`)**:
-  - `provider.go`: `Provider` interface.
-  - `claude_provider.go` / `opencode_provider.go`: Individual tool adapters.
-  - `factory.go` / `registry.go`: Provider instantiation and caching.
+  - `provider.go`: `Provider` core interface and configuration structures.
+  - `factory.go`: Global factory for creating `claude`, `opencode`, and other CLI-based providers.
+  - `event.go`: Unified event protocol (`ProviderEventType`) for standardized streaming.
+- **ChatApps Layer (`chatapps/`)**:
+  - **Bridge**: `engine_handler.go` - Standardizes AI events into technical keys for cross-platform consumption.
+  - **Management**: `manager.go` - Controls the lifecycle (start/stop) of all bot adapters.
+  - **Initialization**: `setup.go` - Unified entry point to boot multi-platform bots based on YAML configs.
+  - **Adapters**: `telegram/`, `discord/`, `slack/`, etc. - Native platform-specific webhooks and messaging.
+  - **Configs**: `configs/*.yaml` - Tailored system prompts and platform-specific behavioral tuning.
 - **Internal Core (`internal/engine/`)**:
-  - `pool.go`: `SessionPool` (process multiplexing) and GC loops.
-  - `session.go`: Individual `Session` I/O piping and state machine.
+  - `pool.go`: `SessionPool` manages process hot-multiplexing, GC, and concurrency safety.
+  - `session.go`: OS process piping, PGID management, and low-level I/O state machines.
 - **Internal Security (`internal/security/`)**:
-  - `detector.go`: The Regex WAF. (Add new scary commands to reject here).
+  - `detector.go`: The Regex WAF (System-wide input/output command interception).
 - **Internal Systems (`internal/sys/`)**:
-  - `proc_unix.go` / `proc_windows.go`: PGID and signal handling.
+  - `proc_unix.go` / `proc_windows.go`: OS-level Process Group (PGID) isolation and signal routing.
 - **Adapters (`internal/server/`)**:
-  - `hotplex_ws.go`: Native WebSocket protocol implementation.
-  - `opencode_http.go`: OpenCode HTTP/SSE compatibility layer.
-  - `security.go`: CORS and API key security configuration.
+  - `hotplex_ws.go`: Native JSON-over-WebSocket protocol.
+  - `opencode_http.go`: OpenCode HTTP/SSE translation layer.
+  - `security.go`: Shared security config for CORS and API Key authentication.
 - **Types & Events (`types/`, `event/`)**:
-  - Core data structures and streaming protocols.
+  - Core data models and generic event emission bus.
 
 ---
 

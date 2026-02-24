@@ -19,9 +19,8 @@ type Adapter struct {
 	config      Config
 	rateLimiter *RateLimiter
 	webhookPath string
-	sender      func(ctx context.Context, sessionID string, msg *base.ChatMessage) error
-	senderMu    sync.RWMutex   // Protects sender
-	webhookWg   sync.WaitGroup // Tracks webhook processing goroutines
+	sender      *base.SenderWithMutex
+	webhook     *base.WebhookRunner
 }
 
 type RateLimiter struct {
@@ -78,6 +77,8 @@ func NewAdapter(config Config, logger *slog.Logger, opts ...base.AdapterOption) 
 		config:      config,
 		rateLimiter: NewRateLimiter(30, 10),
 		webhookPath: "/webhook",
+		sender:      base.NewSenderWithMutex(),
+		webhook:     base.NewWebhookRunner(logger),
 	}
 
 	a.Adapter = base.NewAdapter("telegram", base.Config{
@@ -93,7 +94,7 @@ func NewAdapter(config Config, logger *slog.Logger, opts ...base.AdapterOption) 
 
 	// Set default sender if BotToken is configured
 	if config.BotToken != "" {
-		a.sender = a.defaultSender
+		a.sender.SetSender(a.defaultSender)
 	}
 
 	return a
@@ -103,19 +104,11 @@ func (a *Adapter) SendMessage(ctx context.Context, sessionID string, msg *base.C
 	if err := a.rateLimiter.Wait(ctx); err != nil {
 		return fmt.Errorf("rate limited: %w", err)
 	}
-	a.senderMu.RLock()
-	sender := a.sender
-	a.senderMu.RUnlock()
-	if sender == nil {
-		return fmt.Errorf("sender not configured")
-	}
-	return sender(ctx, sessionID, msg)
+	return a.sender.SendMessage(ctx, sessionID, msg)
 }
 
 func (a *Adapter) SetSender(fn func(ctx context.Context, sessionID string, msg *base.ChatMessage) error) {
-	a.senderMu.Lock()
-	defer a.senderMu.Unlock()
-	a.sender = fn
+	a.sender.SetSender(fn)
 }
 
 // defaultSender sends message via Telegram Bot API
@@ -306,14 +299,7 @@ func (a *Adapter) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if a.Handler() != nil {
-		reqCtx := r.Context()
-		a.webhookWg.Add(1)
-		go func() {
-			defer a.webhookWg.Done()
-			if err := a.Handler()(reqCtx, msg); err != nil {
-				a.Logger().Error("Handle message failed", "error", err)
-			}
-		}()
+		a.webhook.Run(r.Context(), a.Handler(), msg)
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -383,18 +369,7 @@ func (a *Adapter) Start(ctx context.Context) error {
 }
 
 func (a *Adapter) Stop() error {
-	// Wait for pending webhook goroutines to complete
-	// Use a timeout to prevent indefinite wait
-	done := make(chan struct{})
-	go func() {
-		a.webhookWg.Wait()
-		close(done)
-	}()
-	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
-		a.Logger().Warn("Timeout waiting for webhook goroutines")
-	}
+	a.webhook.Stop()
 
 	if a.config.WebhookURL != "" {
 		if err := a.DeleteWebhook(context.Background()); err != nil {

@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
+
+	"github.com/hrygo/hotplex/internal/persistence"
 )
 
 // ClaudeCodeProvider implements the Provider interface for Claude Code CLI.
@@ -15,8 +15,8 @@ import (
 // with the existing HotPlex implementation.
 type ClaudeCodeProvider struct {
 	ProviderBase
-	opts      ProviderConfig
-	markerDir string
+	opts        ProviderConfig
+	markerStore persistence.SessionMarkerStore
 }
 
 // NewClaudeCodeProvider creates a new Claude Code provider instance.
@@ -48,17 +48,8 @@ func NewClaudeCodeProvider(cfg ProviderConfig, logger *slog.Logger) (*ClaudeCode
 		}
 	}
 
-	// Initialize marker directory for session persistence
-	homeDir, err := os.UserHomeDir()
-	var markerDir string
-	if err == nil {
-		markerDir = filepath.Join(homeDir, ".hotplex", "sessions")
-	} else {
-		markerDir = filepath.Join(os.TempDir(), "hotplex_sessions")
-	}
-	if err := os.MkdirAll(markerDir, 0755); err != nil {
-		return nil, fmt.Errorf("create marker directory: %w", err)
-	}
+	// Initialize marker store for session persistence
+	markerStore := persistence.NewDefaultFileMarkerStore()
 
 	return &ClaudeCodeProvider{
 		ProviderBase: ProviderBase{
@@ -66,8 +57,8 @@ func NewClaudeCodeProvider(cfg ProviderConfig, logger *slog.Logger) (*ClaudeCode
 			binaryPath: binaryPath,
 			logger:     logger.With("provider", "claude-code"),
 		},
-		opts:      cfg,
-		markerDir: markerDir,
+		opts:        cfg,
+		markerStore: markerStore,
 	}, nil
 }
 
@@ -86,10 +77,9 @@ func (p *ClaudeCodeProvider) BuildCLIArgs(providerSessionID string, opts *Provid
 		p.logger.Debug("Resuming existing Claude Code session", "session_id", providerSessionID)
 	} else {
 		args = append(args, "--session-id", providerSessionID)
-		// Create marker file for persistence detection
-		markerPath := filepath.Join(p.markerDir, providerSessionID+".lock")
-		if err := os.WriteFile(markerPath, []byte(""), 0644); err != nil {
-			p.logger.Warn("Failed to create session marker file", "session_id", providerSessionID, "error", err)
+		// Create marker for persistence detection
+		if err := p.markerStore.Create(providerSessionID); err != nil {
+			p.logger.Warn("Failed to create session marker", "session_id", providerSessionID, "error", err)
 		}
 		p.logger.Debug("Creating new Claude Code session", "session_id", providerSessionID)
 	}
@@ -134,20 +124,6 @@ func (p *ClaudeCodeProvider) BuildCLIArgs(providerSessionID string, opts *Provid
 	}
 
 	return args
-}
-
-// BuildEnvVars constructs environment variables for Claude Code.
-func (p *ClaudeCodeProvider) BuildEnvVars(opts *ProviderSessionOptions) []string {
-	env := []string{
-		"CLAUDE_DISABLE_TELEMETRY=1",
-	}
-
-	// Add extra environment variables from config
-	for k, v := range p.opts.ExtraEnv {
-		env = append(env, fmt.Sprintf("%s=%s", k, v))
-	}
-
-	return env
 }
 
 // BuildInputMessage constructs the stream-json input message.
@@ -306,14 +282,6 @@ func (p *ClaudeCodeProvider) DetectTurnEnd(event *ProviderEvent) bool {
 	return event != nil && (event.Type == EventTypeResult || event.Type == EventTypeError)
 }
 
-// ExtractSessionID extracts the Claude session ID from events.
-func (p *ClaudeCodeProvider) ExtractSessionID(event *ProviderEvent) string {
-	if event == nil {
-		return ""
-	}
-	return event.SessionID
-}
-
 // ValidateBinary checks if the Claude CLI is available.
 func (p *ClaudeCodeProvider) ValidateBinary() (string, error) {
 	if p.binaryPath != "" {
@@ -328,14 +296,12 @@ func (p *ClaudeCodeProvider) ValidateBinary() (string, error) {
 
 // GetMarkerDir returns the session marker directory path.
 func (p *ClaudeCodeProvider) GetMarkerDir() string {
-	return p.markerDir
+	return p.markerStore.Dir()
 }
 
 // CheckSessionMarker checks if a session marker exists for the given ID.
 func (p *ClaudeCodeProvider) CheckSessionMarker(providerSessionID string) bool {
-	markerPath := filepath.Join(p.markerDir, providerSessionID+".lock")
-	_, err := os.Stat(markerPath)
-	return err == nil
+	return p.markerStore.Exists(providerSessionID)
 }
 
 // mergeStringSlices merges two string slices with deduplication.

@@ -8,7 +8,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/hrygo/hotplex/chatapps/base"
@@ -18,15 +17,16 @@ type Adapter struct {
 	*base.Adapter
 	config      Config
 	webhookPath string
-	sender      func(ctx context.Context, sessionID string, msg *base.ChatMessage) error
-	senderMu    sync.RWMutex   // Protects sender
-	webhookWg   sync.WaitGroup // Tracks webhook processing goroutines
+	sender      *base.SenderWithMutex
+	webhook     *base.WebhookRunner
 }
 
 func NewAdapter(config Config, logger *slog.Logger, opts ...base.AdapterOption) *Adapter {
 	a := &Adapter{
 		config:      config,
 		webhookPath: "/webhook",
+		sender:      base.NewSenderWithMutex(),
+		webhook:     base.NewWebhookRunner(logger),
 	}
 
 	if config.APIVersion == "" {
@@ -46,26 +46,18 @@ func NewAdapter(config Config, logger *slog.Logger, opts ...base.AdapterOption) 
 
 	// Set default sender if credentials are configured
 	if config.AccessToken != "" && config.PhoneNumberID != "" {
-		a.sender = a.defaultSender
+		a.sender.SetSender(a.defaultSender)
 	}
 
 	return a
 }
 
 func (a *Adapter) SendMessage(ctx context.Context, sessionID string, msg *base.ChatMessage) error {
-	a.senderMu.RLock()
-	sender := a.sender
-	a.senderMu.RUnlock()
-	if sender == nil {
-		return fmt.Errorf("sender not configured")
-	}
-	return sender(ctx, sessionID, msg)
+	return a.sender.SendMessage(ctx, sessionID, msg)
 }
 
 func (a *Adapter) SetSender(fn func(ctx context.Context, sessionID string, msg *base.ChatMessage) error) {
-	a.senderMu.Lock()
-	defer a.senderMu.Unlock()
-	a.sender = fn
+	a.sender.SetSender(fn)
 }
 
 // defaultSender sends message via WhatsApp Cloud API
@@ -136,17 +128,7 @@ func (a *Adapter) extractRecipient(sessionID string, msg *base.ChatMessage) stri
 
 // Stop waits for pending webhook goroutines to complete
 func (a *Adapter) Stop() error {
-	done := make(chan struct{})
-	go func() {
-		a.webhookWg.Wait()
-		close(done)
-	}()
-	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
-		a.Logger().Warn("Timeout waiting for webhook goroutines")
-	}
-
+	a.webhook.Stop()
 	return a.Adapter.Stop()
 }
 

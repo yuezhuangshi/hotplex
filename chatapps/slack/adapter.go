@@ -12,7 +12,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/hrygo/hotplex/chatapps/base"
@@ -23,9 +22,8 @@ type Adapter struct {
 	config          Config
 	eventPath       string
 	interactivePath string
-	sender          func(ctx context.Context, sessionID string, msg *base.ChatMessage) error
-	senderMu        sync.RWMutex   // Protects sender
-	webhookWg       sync.WaitGroup // Tracks webhook processing goroutines
+	sender          *base.SenderWithMutex
+	webhook         *base.WebhookRunner
 }
 
 func NewAdapter(config Config, logger *slog.Logger, opts ...base.AdapterOption) *Adapter {
@@ -33,6 +31,8 @@ func NewAdapter(config Config, logger *slog.Logger, opts ...base.AdapterOption) 
 		config:          config,
 		eventPath:       "/webhook/events",
 		interactivePath: "/webhook/interactive",
+		sender:          base.NewSenderWithMutex(),
+		webhook:         base.NewWebhookRunner(logger),
 	}
 
 	a.Adapter = base.NewAdapter("slack", base.Config{
@@ -49,26 +49,18 @@ func NewAdapter(config Config, logger *slog.Logger, opts ...base.AdapterOption) 
 
 	// Set default sender if BotToken is configured
 	if config.BotToken != "" {
-		a.sender = a.defaultSender
+		a.sender.SetSender(a.defaultSender)
 	}
 
 	return a
 }
 
 func (a *Adapter) SendMessage(ctx context.Context, sessionID string, msg *base.ChatMessage) error {
-	a.senderMu.RLock()
-	sender := a.sender
-	a.senderMu.RUnlock()
-	if sender == nil {
-		return fmt.Errorf("sender not configured")
-	}
-	return sender(ctx, sessionID, msg)
+	return a.sender.SendMessage(ctx, sessionID, msg)
 }
 
 func (a *Adapter) SetSender(fn func(ctx context.Context, sessionID string, msg *base.ChatMessage) error) {
-	a.senderMu.Lock()
-	defer a.senderMu.Unlock()
-	a.sender = fn
+	a.sender.SetSender(fn)
 }
 
 // defaultSender sends message via Slack API
@@ -200,30 +192,12 @@ func (a *Adapter) handleEventCallback(ctx context.Context, eventData json.RawMes
 		},
 	}
 
-	if a.Handler() != nil {
-		a.webhookWg.Add(1)
-		go func() {
-			defer a.webhookWg.Done()
-			if err := a.Handler()(ctx, msg); err != nil {
-				a.Logger().Error("Handle message failed", "error", err)
-			}
-		}()
-	}
+	a.webhook.Run(ctx, a.Handler(), msg)
 }
 
 // Stop waits for pending webhook goroutines to complete
 func (a *Adapter) Stop() error {
-	done := make(chan struct{})
-	go func() {
-		a.webhookWg.Wait()
-		close(done)
-	}()
-	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
-		a.Logger().Warn("Timeout waiting for webhook goroutines")
-	}
-
+	a.webhook.Stop()
 	return a.Adapter.Stop()
 }
 
