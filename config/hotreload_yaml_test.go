@@ -86,7 +86,7 @@ tags: ["prod"]
 
 	// Cleanup
 	cancel()
-	reloader.Close()
+	_ = reloader.Close()
 }
 
 func TestYAMLHotReloaderInvalidYAML(t *testing.T) {
@@ -150,10 +150,9 @@ version: "1.0.0"
 		}()
 	}
 
-	// Wait for all goroutines
 	for i := 0; i < 10; i++ {
 		<-done
 	}
 
-	reloader.Close()
+	_ = reloader.Close()
 }
