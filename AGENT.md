@@ -176,7 +176,55 @@ If the USER asks you to `[Implement]`, `[Extend]`, or `[Fix]` something in HotPl
 
 ---
 
-## 9. Quick Reference Summary
+## 9. File Editing Workflow (CRITICAL)
+
+**The Edit tool tracks file state. Sequential edits without re-reading cause duplicates and corruption.**
+
+### 9.1 Mandatory Rules
+
+1. **One Edit Per Turn**: Never send multiple `edit` calls to the same file in a single response.
+   ```
+   ❌ edit(file) → edit(file) → edit(file)  # WRONG: Will cause duplicates
+   ✅ edit(file) → read(file) → verify → next edit
+   ```
+
+2. **Read-Before-Edit**: Always read the file before editing, even if you "just read it".
+   - File state changes between turns
+   - LINE#ID references become stale immediately after any edit
+
+3. **Verify-After-Edit**: After each edit, read the file to confirm the result before proceeding.
+   ```
+   ✅ read(file) → edit(file, target) → read(file) → confirm correct → continue
+   ```
+
+### 9.2 Common Failure Patterns
+
+| Pattern | Result | Fix |
+|---------|--------|-----|
+| `edit` → `edit` same file | Duplicate content | Read between edits |
+| Using stale LINE#ID | Wrong position | Re-read before edit |
+| Assuming edit succeeded | Silent corruption | Verify after edit |
+| Multiple edits in one response | Race condition | One edit per turn |
+
+### 9.3 Batch Editing Strategy
+
+When multiple changes are needed in one file:
+1. **Prefer single large edit**: Combine all changes into one `edit` call with multi-line `lines`
+2. **If must do sequential**: `read` → `edit` → `read` → `confirm` → `edit` → `read` → `confirm`
+3. **If edit fails**: `read` the file again to get fresh state before retrying
+
+### 9.4 Error Recovery
+
+If an edit produces unexpected results:
+1. **STOP** - Do not attempt another edit
+2. **READ** - Get current file state
+3. **ANALYZE** - Understand what went wrong
+4. **RESTORE** - Use `git checkout` if needed to get clean state
+5. **RETRY** - Start fresh with correct file state
+
+---
+
+## 10. Quick Reference Summary
 
 | Category        | Requirement                                                                |
 | :-------------- | :------------------------------------------------------------------------- |
@@ -184,3 +232,4 @@ If the USER asks you to `[Implement]`, `[Extend]`, or `[Fix]` something in HotPl
 | **Safety**      | `git status` check mandatory • No lazy deletions • No WAF bypass           |
 | **Code**        | SOLID • Uber Go Style • `slog` structured logging                          |
 | **Testing**     | `go test -race` required • Mock I/O • No code without tests                |
+| **Editing**     | Read-before-edit • Verify-after-edit • One edit per turn                   |
