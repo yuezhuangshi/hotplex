@@ -33,6 +33,9 @@ type SessionPool struct {
 	pending      map[string]chan struct{}
 }
 
+// blockedEnvPrefixes contains environment variable prefixes that should be filtered
+// out for security reasons to prevent injection attacks via environment variables.
+
 // NewSessionPool creates a new session manager with default file-based marker storage.
 func NewSessionPool(logger *slog.Logger, timeout time.Duration, opts EngineOptions, cliPath string, prv provider.Provider) *SessionPool {
 	if logger == nil {
@@ -218,7 +221,17 @@ func (sm *SessionPool) startSession(ctx context.Context, sessionID string, cfg S
 			cmd.Dir = cleaned // Fallback to cleaned path if error
 		}
 	} else {
+		// For absolute paths, also clean to resolve . and .. elements
 		cmd.Dir = filepath.Clean(cfg.WorkDir)
+	}
+	if cfg.WorkDir == "." || !filepath.IsAbs(cfg.WorkDir) {
+		if absPath, err := filepath.Abs(cfg.WorkDir); err == nil {
+			cmd.Dir = absPath
+		} else {
+			cmd.Dir = cfg.WorkDir // Fallback to original if error
+		}
+	} else {
+		cmd.Dir = cfg.WorkDir
 	}
 
 	// Setup process attributes and get job handle (Windows) or zero (Unix)
