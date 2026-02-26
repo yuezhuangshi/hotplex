@@ -84,17 +84,16 @@
     <circle cx="108" cy="55" r="32" class="icon-bg c-link" />
     <path d="M95 55 A8 8 0 0 1 103 47 H113 A8 8 0 0 1 121 55 V55 A8 8 0 0 1 113 63 H103 A8 8 0 0 1 95 55 Z" class="icon-stroke c-link" style="stroke-width: 3;"/>
     <path d="M103 55 H113" class="icon-stroke c-link" style="stroke-width: 4;" />
-    <text x="108" y="115" text-anchor="middle" class="text-title">Unified Gateway</text>
-    <text x="108" y="135" text-anchor="middle" class="text-sub">SDK &amp; Proxy Bridge</text>
+    <text x="108" y="115" text-anchor="middle" class="text-title">SDK &amp; Proxy Server</text>
+    <text x="108" y="135" text-anchor="middle" class="text-sub">Embedded &amp; Gateway Modes</text>
   </g>
 
   <!-- 7. Provider (BRAIN REFINED: 🧠 Metaphor) -->
   <g transform="translate(525, 230)">
     <rect width="215" height="160" rx="12" class="feature-card" />
     <circle cx="108" cy="55" r="32" class="icon-bg c-brain" />
-    <path d="M98 52 C92 52 88 56 88 62 C88 72 108 82 108 82 C108 82 128 72 128 62 C128 56 124 52 118 52 C114 52 111 54 108 57 C105 54 102 52 98 52 Z" class="icon-fill c-brain" opacity="0.4"/>
-    <path d="M108 40 C95 40 92 48 92 54 C92 62 108 72 108 72 C108 72 124 62 124 54 C124 48 121 40 108 40 Z" class="icon-stroke c-brain" style="stroke-width: 2.5;"/>
-    <path d="M100 45 Q108 40 116 45" class="icon-stroke c-brain" style="stroke-width: 1.5;"/>
+    <path d="M108 35 C98 35 90 42 90 52 C90 65 108 78 108 78 C108 78 126 65 126 52 C126 42 118 35 108 35 Z M108 35 V78" class="icon-stroke c-brain" style="stroke-width: 2.5;"/>
+    <path d="M95 45 Q108 42 121 45 M95 55 Q108 52 121 55 M95 65 Q108 62 121 65" class="icon-stroke c-brain" style="stroke-opacity: 0.5; stroke-width: 1;"/>
     <text x="108" y="115" text-anchor="middle" class="text-title">AI Provider</text>
     <text x="108" y="135" text-anchor="middle" class="text-sub">The Smart Agent Brain</text>
   </g>
