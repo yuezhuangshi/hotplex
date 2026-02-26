@@ -320,6 +320,26 @@ func (c *StreamCallback) sendMessageAndGetTS(msg *ChatMessage) error {
 	return nil
 }
 
+// deleteThinkingMessage deletes the thinking message from Slack
+func (c *StreamCallback) deleteThinkingMessage() error {
+	if c.thinkingChannelID == "" || c.thinkingMessageTS == "" {
+		return nil
+	}
+
+	// Get Slack adapter and delete the message
+	adapter, ok := c.adapters.GetAdapter(c.platform)
+	if !ok || adapter == nil {
+		return fmt.Errorf("adapter not found for platform: %s", c.platform)
+	}
+
+	slackAdapter, ok := adapter.(*slack.Adapter)
+	if !ok {
+		return fmt.Errorf("adapter is not a Slack adapter")
+	}
+
+	return slackAdapter.DeleteMessage(c.ctx, c.thinkingChannelID, c.thinkingMessageTS)
+}
+
 func (c *StreamCallback) handleToolUse(data any) error {
 	c.logger.Debug("[TOOL] handleToolUse called", "data_type", fmt.Sprintf("%T", data))
 
@@ -388,8 +408,18 @@ func (c *StreamCallback) handleToolResult(data any) error {
 }
 
 func (c *StreamCallback) handleAnswer(data any) error {
-	// Clear thinking state on first non-thinking event
-	if c.thinkingSent {
+	// Clear thinking message on first answer if it exists
+	if c.thinkingSent && c.thinkingMessageTS != "" && c.thinkingChannelID != "" {
+		c.logger.Debug("Deleting thinking message for answer",
+			"ts", c.thinkingMessageTS,
+			"channel", c.thinkingChannelID)
+		if err := c.deleteThinkingMessage(); err != nil {
+			c.logger.Warn("Failed to delete thinking message", "error", err)
+		}
+		c.thinkingSent = false
+		c.thinkingMessageTS = ""
+		c.thinkingChannelID = ""
+	} else if c.thinkingSent {
 		c.thinkingSent = false
 		c.logger.Debug("Clearing thinking state for answer")
 	}

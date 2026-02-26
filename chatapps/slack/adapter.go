@@ -1290,6 +1290,60 @@ func (a *Adapter) UpdateMessage(ctx context.Context, channelID, messageTS string
 	return nil
 }
 
+// DeleteMessage deletes a Slack message using chat.delete API
+func (a *Adapter) DeleteMessage(ctx context.Context, channelID, messageTS string) error {
+	payload := map[string]any{
+		"channel": channelID,
+		"ts":      messageTS,
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", "https://slack.com/api/chat.delete", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+a.config.BotToken)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read response: %w", err)
+	}
+
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return fmt.Errorf("rate limited: 429")
+	}
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("delete failed: %d %s", resp.StatusCode, string(respBody))
+	}
+
+	var slackResp struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error,omitempty"`
+	}
+	if err := json.Unmarshal(respBody, &slackResp); err != nil {
+		a.Logger().Warn("Failed to parse Slack response", "body", string(respBody))
+		return nil
+	}
+
+	if !slackResp.OK {
+		return fmt.Errorf("slack API error: %s", slackResp.Error)
+	}
+
+	a.Logger().Debug("Message deleted successfully", "channel", channelID, "ts", messageTS)
+	return nil
+}
+
 // SUPPORTED_COMMANDS lists all slash commands supported by the system.
 
 // SUPPORTED_COMMANDS lists all slash commands supported by the system.
