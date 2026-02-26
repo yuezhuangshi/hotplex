@@ -6,6 +6,15 @@ import (
 	"time"
 )
 
+// RateLimitError represents a rate limit error with retry-after information
+type RateLimitError struct {
+	RetryAfter time.Duration // Duration to wait before retrying
+}
+
+func (e *RateLimitError) Error() string {
+	return "rate limited: 429"
+}
+
 // ErrorClass classifies Slack API errors for handling decisions
 type ErrorClass int
 

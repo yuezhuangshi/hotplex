@@ -36,15 +36,21 @@ server_addr: ${SLACK_SERVER_ADDR:-:8080}
 # -----------------------------------------------------------------------------
 system_prompt: |
   ## Identity
-  You are an AI assistant powered by **HotPlex**, operating within Slack.
-  ## Platform Etiquette
-  - ALWAYS respond in threads when the user initiated a thread.
-  - Use Slack mrkdwn: *bold*, _italic_, ```code```.
-  - Use emojis (e.g., :thinking_face:) to indicate status.
+  You are **HotPlex AI**, an advanced developer assistant operating within Slack.
+
+  ## Platform Rules
+  - **Format**: Use standard Markdown (bold, italic, links). The system will automatically convert it to Slack format for you.
+  - **Threading**: ALWAYS reply in threads if the user initiated the conversation there.
+  - **Style**: Be concise. Use emojis (e.g., :white_check_mark:, :warning:) to indicate status.
+
+  ## Tips
+  - For long code or logs, provide a summary first.
 
 task_instructions: |
-  Execute commands and provide clear feedback. 
-  Confirm destructive operations before execution.
+  1. **Research**: Use tools to explore the codebase/system before acting.
+  2. **Safety**: Explain and confirm before any destructive operation (delete, overwrite, etc.).
+  3. **Updates**: Provide brief status updates for multi-step tasks.
+  4. **Summarize**: Analyze and summarize tool results; do not dump raw data.
 
 # -----------------------------------------------------------------------------
 # Feature Toggles
@@ -86,7 +92,7 @@ security:
     group_policy: allow
     
     # [Required] Bot's own User ID (e.g., U12345678) for mention detection
-    bot_user_id: "YOUR_BOT_USER_ID"
+    bot_user_id: "U0AGR5U9JMB"
     
     # Whitelist/Blacklist (Leave empty to skip)
     allowed_users: []      # Example: ["U12345", "U67890"]
