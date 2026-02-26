@@ -50,7 +50,7 @@
 
 ### 模式 B：HTTP Mode (传统 Webhook)
 **适合具备公网 IP/域名的生产环境。**
-1.  在 `Event Subscriptions` -> `Request URL` 填写你的服务器地址（需 HTTPS）。
+1.  在 `Event Subscriptions` -> `Request URL` 填写：`https://你的域名/webhook/slack/events`。
 2.  确保 `slack.yaml` 中的 `verify_signature` 为 `true`。
 3.  `.env` 配置：`SLACK_MODE=http`, `SLACK_SIGNING_SECRET=...`。
 
@@ -60,13 +60,15 @@
 
 HotPlex 内置了两个强大的运维指令，请手动在 `Slash Commands` 页面添加：
 
-| 指令     | 作用                   | Request URL               |
-| :------- | :--------------------- | :------------------------ |
-| `/clear` | **重置上下文**         | 你的服务器 Webhook 根地址 |
-| `/dc`    | **强行断开并保留进度** | 你的服务器 Webhook 根地址 |
+| 指令     | 作用                                                         | Request URL (限 HTTP 模式)             |
+| :------- | :----------------------------------------------------------- | :------------------------------------- |
+| `/reset` | **彻底重置会话** (清空历史上下文，下次对话将冷启动)          | `https://你的域名/webhook/slack/slack` |
+| `/dc`    | **断开连接并保留进度** (仅终止 CLI 进程，下次对话将自动恢复) | `https://你的域名/webhook/slack/slack` |
 
 > [!NOTE]
 > 在 **Socket Mode** 下，指令会自动通过 WebSocket 传输，但你仍需在控制面板中“声明”这两个指令。
+> - **`/reset`**：当 AI 记忆混乱或需要开启新任务时使用。
+> - **`/dc`**：用于强制杀死后台挂起的 CLI 进程，系统会保留当前进度供下次恢复。
 
 ---
 

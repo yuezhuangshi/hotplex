@@ -63,7 +63,7 @@ func NewAdapter(config *Config, logger *slog.Logger, opts ...base.AdapterOption)
 		a.socketMode.RegisterHandler("message", a.handleSocketModeEvent)
 		// "app_mention" handles @mentions in channels
 		a.socketMode.RegisterHandler("app_mention", a.handleSocketModeEvent)
-		// "slash_commands" handles slash commands (/clear, /dc, etc.)
+		// "slash_commands" handles slash commands (/reset, /dc, etc.)
 		a.socketMode.RegisterHandler("slash_commands", a.handleSocketModeSlashCommand)
 	}
 
@@ -598,7 +598,7 @@ func (a *Adapter) handleSocketModeSlashCommand(eventType string, data json.RawMe
 	a.Logger().Debug("Socket Mode slash command received")
 
 	// Parse slash command data from Socket Mode
-	// Socket Mode sends slash commands as: {"type": "slash_commands", "command": "/clear", "user_id": "U123", "channel_id": "C123", ...}
+	// Socket Mode sends slash commands as: {"type": "slash_commands", "command": "/reset", "user_id": "U123", "channel_id": "C123", ...}
 	var slashData map[string]any
 	if err := json.Unmarshal(data, &slashData); err != nil {
 		a.Logger().Error("Parse socket mode slash command failed", "error", err)
@@ -1029,9 +1029,9 @@ func (a *Adapter) handleSlashCommand(w http.ResponseWriter, r *http.Request) {
 // processSlashCommand handles the slash command logic
 func (a *Adapter) processSlashCommand(cmd SlashCommand) {
 	switch cmd.Command {
-	case "/clear":
-		if err := a.handleClearCommand(cmd); err != nil {
-			a.Logger().Error("handleClearCommand failed", "command", cmd.Command, "error", err)
+	case "/reset":
+		if err := a.handleResetCommand(cmd); err != nil {
+			a.Logger().Error("handleResetCommand failed", "command", cmd.Command, "error", err)
 		}
 	case "/dc":
 		if err := a.handleDisconnectCommand(cmd); err != nil {
@@ -1042,74 +1042,89 @@ func (a *Adapter) processSlashCommand(cmd SlashCommand) {
 	}
 }
 
-// handleClearCommand processes /clear command to perform a FORCE RESET.
-// This is more aggressive than /dc which only disconnects but preserves context.
+// handleResetCommand processes /reset command to perform a hard reset of conversation context.
 //
-// /clear performs:
-// 1. Reset ProviderSessionID (generates new random UUID on restart)
-// 2. Delete HotPlex session marker (~/.hotplex/sessions/{sessionID}.lock)
-// 3. Terminate the current session process
+// /reset performs a physical reset by:
+// 1. Deleting the Claude Code project session file (~/.claude/projects/{workspace}/{ProviderSessionID}.jsonl)
+// 2. Deleting the HotPlex session marker (~/.hotplex/sessions/{sessionID}.lock)
+// 3. Terminating the session process
 //
-// Next message will cold-start a fresh session with new ProviderSessionID,
-// which means Claude Code will start with a clean context.
-func (a *Adapter) handleClearCommand(cmd SlashCommand) error {
-	// Check if engine is set
+// Next message will cold-start with a fresh context.
+func (a *Adapter) handleResetCommand(cmd SlashCommand) error {
 	if a.eng == nil {
 		a.Logger().Error("Engine is nil")
 		return a.sendEphemeralMessage(cmd.ResponseURL, "❌ Internal error: Engine not initialized")
 	}
 
-	// Find session by matching user_id and channel_id
 	baseSession := a.FindSessionByUserAndChannel(cmd.UserID, cmd.ChannelID)
 	if baseSession == nil {
-		a.Logger().Error("No active session found for /clear",
-			"channel_id", cmd.ChannelID,
-			"user_id", cmd.UserID)
+		a.Logger().Error("No active session found for /reset",
+			"channel_id", cmd.ChannelID, "user_id", cmd.UserID)
 		return a.sendEphemeralMessage(cmd.ResponseURL, "ℹ️ No active session found")
 	}
 
 	sessionID := baseSession.SessionID
-	a.Logger().Info("Found session for /clear",
-		"session_id", sessionID,
-		"channel_id", cmd.ChannelID,
-		"user_id", cmd.UserID)
+	a.Logger().Info("Found session for /reset",
+		"session_id", sessionID, "channel_id", cmd.ChannelID, "user_id", cmd.UserID)
 
-	// Step 1: Reset ProviderSessionID - this ensures new session gets fresh context
-	a.eng.ResetSessionProvider(sessionID)
+	// Step 1: Delete Claude Code project session file
+	deletedCount := a.deleteClaudeCodeSessionFile(sessionID)
+	a.Logger().Debug("Deleted Claude Code session files",
+		"session_id", sessionID, "count", deletedCount)
 
-	// Step 2: Delete HotPlex marker file
-	markerDeleted := false
-	homeDir, err := os.UserHomeDir()
-	if err == nil {
-		markerPath := filepath.Join(homeDir, ".hotplex", "sessions", sessionID+".lock")
-		if err := os.Remove(markerPath); err != nil && !os.IsNotExist(err) {
-			a.Logger().Error("Failed to delete HotPlex session marker",
-				"session_id", sessionID, "error", err)
-		} else {
-			markerDeleted = true
-			a.Logger().Debug("Deleted HotPlex session marker",
-				"session_id", sessionID, "path", markerPath)
-		}
-	}
+	// Step 2: Delete HotPlex session marker
+	markerDeleted := a.deleteHotPlexMarker(sessionID)
 
-	// Step 3: Terminate the current session process
-	if err := a.eng.StopSession(sessionID, "user_requested_clear"); err != nil {
+	// Step 3: Terminate the session process
+	if err := a.eng.StopSession(sessionID, "user_requested_reset"); err != nil {
 		a.Logger().Error("Failed to terminate session",
 			"session_id", sessionID, "error", err)
 		return a.sendEphemeralMessage(cmd.ResponseURL,
-			fmt.Sprintf("⚠️ Session termination failed: %v. Please try /dc.", err))
+			fmt.Sprintf("⚠️ Session termination failed: %v", err))
 	}
 
-	a.Logger().Info("Physical cleanup for /clear completed",
+	a.Logger().Info("Physical cleanup for /reset completed",
 		"session_id", sessionID,
+		"claude_session_deleted", deletedCount > 0,
 		"marker_deleted", markerDeleted)
 
-	// Send success response
 	return a.sendEphemeralMessage(cmd.ResponseURL,
-		"✅ Context cleared. Ready for fresh start!")
+		"✅ Context reset. Ready for fresh start!")
 }
 
-// handleUnknownCommand handles unrecognized slash commands
+// deleteClaudeCodeSessionFile deletes the project session file for a given session.
+// The workspace directory name is derived from the working directory path.
+func (a *Adapter) deleteClaudeCodeSessionFile(sessionID string) int {
+	projectsDir := filepath.Join(os.Getenv("HOME"), ".claude", "projects")
+	
+	// Use current working directory as workspace key
+	// Format: /Users/huangzhonghui/HotPlex -> -Users-huangzhonghui-HotPlex
+	cwd, err := os.Getwd()
+	if err != nil {
+		cwd = "/Users/huangzhonghui/HotPlex" // Default fallback
+	}
+	workspaceKey := strings.ReplaceAll(cwd, "/", "-")
+	workspaceDir := filepath.Join(projectsDir, workspaceKey)
+	
+	sessionFile := filepath.Join(workspaceDir, sessionID+".jsonl")
+	if err := os.Remove(sessionFile); err == nil {
+		return 1
+	}
+	return 0
+}
+
+// deleteHotPlexMarker deletes the HotPlex session marker file.
+func (a *Adapter) deleteHotPlexMarker(sessionID string) bool {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return false
+	}
+	markerPath := filepath.Join(homeDir, ".hotplex", "sessions", sessionID+".lock")
+	if err := os.Remove(markerPath); err == nil || os.IsNotExist(err) {
+		return true
+	}
+	return false
+}
 func (a *Adapter) handleUnknownCommand(cmd SlashCommand) {
 	a.Logger().Debug("Unknown slash command", "command", cmd.Command)
 	// Silently ignore unknown commands - Slack may send other commands

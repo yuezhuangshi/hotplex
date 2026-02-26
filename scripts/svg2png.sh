@@ -163,9 +163,8 @@ main() {
 
     # Specifically convert project-specific assets if found
     local EXTRA_ASSETS=(
-        "docs-site/public/author-avatar.svg"
-        "docs-site/public/logo.svg"
         ".github/assets/hotplex-logo.svg"
+        "docs-site/public/author-avatar.svg"
     )
 
     for asset in "${EXTRA_ASSETS[@]}"; do

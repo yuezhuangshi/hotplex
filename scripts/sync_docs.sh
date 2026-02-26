@@ -100,6 +100,13 @@ safe_cp "$DOCS_DIR/plan/technical-plan-draft.md" "$TARGET_ROOT/plan/technical-pl
 
 # --- Assets ---
 log_info "Syncing assets..."
+
+# Synchronize Logo SSOT
+log_info "Enforcing Logo SSOT..."
+safe_cp ".github/assets/hotplex-logo.svg" "$DOCS_DIR/images/logo.svg"
+safe_cp ".github/assets/hotplex-logo.svg" "$TARGET_ROOT/public/logo.svg"
+safe_cp ".github/assets/hotplex-logo.svg" "$TARGET_ROOT/public/images/logo.svg"
+
 if [[ -d "$DOCS_DIR/images" ]]; then
     cp -r "$DOCS_DIR/images/"* "$TARGET_ROOT/public/images/"
 fi
