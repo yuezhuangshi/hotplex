@@ -126,6 +126,14 @@ func (a *Adapter) defaultSender(ctx context.Context, sessionID string, msg *base
 		}
 	}
 
+	// Check if this is a message update (has message_ts in metadata)
+	var messageTS string
+	if msg.Metadata != nil {
+		if ts, ok := msg.Metadata["message_ts"].(string); ok {
+			messageTS = ts
+		}
+	}
+
 	// Send reactions if present
 	if msg.RichContent != nil && len(msg.RichContent.Reactions) > 0 {
 		for _, reaction := range msg.RichContent.Reactions {
@@ -152,7 +160,20 @@ func (a *Adapter) defaultSender(ctx context.Context, sessionID string, msg *base
 
 	// Send Block Kit blocks if present
 	if msg.RichContent != nil && len(msg.RichContent.Blocks) > 0 {
-		return a.sendBlocks(ctx, channelID, msg.RichContent.Blocks, threadTS, msg.Content)
+		// If we have message_ts, update existing message instead of creating new one
+		if messageTS != "" {
+			return a.UpdateMessage(ctx, channelID, messageTS, msg.RichContent.Blocks, msg.Content)
+		}
+		// Otherwise send new message and store ts in metadata
+		ts, err := a.sendBlocksAndGetTS(ctx, channelID, msg.RichContent.Blocks, threadTS, msg.Content)
+		if err != nil {
+			return err
+		}
+		// Store ts in metadata for future updates
+		if ts != "" && msg.Metadata != nil {
+			msg.Metadata["message_ts"] = ts
+		}
+		return nil
 	}
 
 	return a.SendToChannel(ctx, channelID, msg.Content, threadTS)
@@ -185,6 +206,12 @@ func (a *Adapter) SendAttachment(ctx context.Context, channelID, threadTS string
 
 // sendBlocks sends Block Kit blocks to Slack
 func (a *Adapter) sendBlocks(ctx context.Context, channelID string, blocks []any, threadTS, fallbackText string) error {
+	_, err := a.sendBlocksAndGetTS(ctx, channelID, blocks, threadTS, fallbackText)
+	return err
+}
+
+// sendBlocksAndGetTS sends Block Kit blocks to Slack and returns the message timestamp
+func (a *Adapter) sendBlocksAndGetTS(ctx context.Context, channelID string, blocks []any, threadTS, fallbackText string) (string, error) {
 	payload := map[string]any{
 		"channel": channelID,
 		"text":    fallbackText,
@@ -196,32 +223,32 @@ func (a *Adapter) sendBlocks(ctx context.Context, channelID string, blocks []any
 
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", "https://slack.com/api/chat.postMessage", bytes.NewReader(body))
 	if err != nil {
-		return err
+		return "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+a.config.BotToken)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("read response: %w", err)
+		return "", fmt.Errorf("read response: %w", err)
 	}
 
 	if resp.StatusCode == http.StatusTooManyRequests {
-		return fmt.Errorf("rate limited: 429")
+		return "", fmt.Errorf("rate limited: 429")
 	}
 	if resp.StatusCode >= 400 {
-		return fmt.Errorf("send failed: %d %s", resp.StatusCode, string(respBody))
+		return "", fmt.Errorf("send failed: %d %s", resp.StatusCode, string(respBody))
 	}
 
 	var slackResp struct {
@@ -231,15 +258,15 @@ func (a *Adapter) sendBlocks(ctx context.Context, channelID string, blocks []any
 	}
 	if err := json.Unmarshal(respBody, &slackResp); err != nil {
 		a.Logger().Warn("Failed to parse Slack response", "body", string(respBody))
-		return nil
+		return "", nil
 	}
 
 	if !slackResp.OK {
-		return fmt.Errorf("slack API error: %s", slackResp.Error)
+		return "", fmt.Errorf("slack API error: %s", slackResp.Error)
 	}
 
 	a.Logger().Debug("Blocks sent successfully", "channel", channelID, "ts", slackResp.TS)
-	return nil
+	return slackResp.TS, nil
 }
 
 // sendFileFromURL sends a file from URL to Slack
@@ -403,7 +430,7 @@ func (a *Adapter) handleEventCallback(ctx context.Context, eventData json.RawMes
 	}
 
 	// Structured logging for Slack HTTP webhook message
-	a.Logger().Info("[SLACK_HTTP_WEBHOOK] HTTP webhook event received",
+	a.Logger().Debug("[SLACK_HTTP_WEBHOOK] HTTP webhook event received",
 		"event_type", msgEvent.Type,
 		"channel", msgEvent.Channel,
 		"channel_type", msgEvent.ChannelType,
@@ -458,10 +485,9 @@ func (a *Adapter) handleEventCallback(ctx context.Context, eventData json.RawMes
 
 	// Convert #<command> prefix to /<command> for thread support
 	// Slack threads don't support slash commands, so we allow #reset, #dc, etc.
-	processedText := msgEvent.Text
-	if converted, ok := convertHashPrefixToSlash(msgEvent.Text); ok {
-		processedText = converted
-		a.Logger().Debug("Converted # prefix to / prefix", "original", msgEvent.Text, "converted", converted)
+	processedText, conversionMetadata := preprocessMessageText(msgEvent.Text)
+	if _, converted := conversionMetadata["converted_from_hash"]; converted {
+		a.Logger().Debug("Converted # prefix to / prefix", "original", msgEvent.Text, "converted", processedText)
 	}
 
 	sessionID := a.GetOrCreateSession(msgEvent.User, msgEvent.BotUserID, msgEvent.Channel)
@@ -479,11 +505,20 @@ func (a *Adapter) handleEventCallback(ctx context.Context, eventData json.RawMes
 		},
 	}
 
-	// If converted from # prefix, mark it for special handling
-	if processedText != msgEvent.Text {
-		msg.Metadata["converted_from_hash"] = true
+	// Add thread info if present
+	if msgEvent.ThreadTS != "" {
+		msg.Metadata["thread_ts"] = msgEvent.ThreadTS
 	}
-	msg.Metadata["original_text"] = msgEvent.Text
+
+	// Add subtype info for downstream processing
+	if msgEvent.SubType != "" {
+		msg.Metadata["subtype"] = msgEvent.SubType
+	}
+
+	// Merge conversion metadata
+	for k, v := range conversionMetadata {
+		msg.Metadata[k] = v
+	}
 
 	a.webhook.Run(ctx, a.Handler(), msg)
 }
@@ -520,7 +555,7 @@ func (a *Adapter) Start(ctx context.Context) error {
 
 // handleSocketModeEvent handles incoming events from Socket Mode
 func (a *Adapter) handleSocketModeEvent(eventType string, data json.RawMessage) {
-	a.Logger().Info("[SLACK_SOCKET_MODE] Socket Mode event received",
+	a.Logger().Debug("[SLACK_SOCKET_MODE] Socket Mode event received",
 		"event_type", eventType,
 		"data_len", len(data))
 
@@ -570,10 +605,9 @@ func (a *Adapter) handleSocketModeEvent(eventType string, data json.RawMessage) 
 
 	// Convert #<command> prefix to /<command> for thread support
 	// Slack threads don't support slash commands, so we allow #reset, #dc, etc.
-	processedText := msgEvent.Text
-	if converted, ok := convertHashPrefixToSlash(msgEvent.Text); ok {
-		processedText = converted
-		a.Logger().Debug("Converted # prefix to / prefix", "original", msgEvent.Text, "converted", converted)
+	processedText, conversionMetadata := preprocessMessageText(msgEvent.Text)
+	if _, converted := conversionMetadata["converted_from_hash"]; converted {
+		a.Logger().Debug("Converted # prefix to / prefix", "original", msgEvent.Text, "converted", processedText)
 	}
 
 	sessionID := a.GetOrCreateSession(msgEvent.User, msgEvent.BotUserID, msgEvent.Channel)
@@ -591,11 +625,20 @@ func (a *Adapter) handleSocketModeEvent(eventType string, data json.RawMessage) 
 		},
 	}
 
-	// If converted from # prefix, mark it for special handling
-	if processedText != msgEvent.Text {
-		msg.Metadata["converted_from_hash"] = true
+	// Add thread info if present
+	if msgEvent.ThreadTS != "" {
+		msg.Metadata["thread_ts"] = msgEvent.ThreadTS
 	}
-	msg.Metadata["original_text"] = msgEvent.Text
+
+	// Add subtype info for downstream processing
+	if msgEvent.SubType != "" {
+		msg.Metadata["subtype"] = msgEvent.SubType
+	}
+
+	// Merge conversion metadata
+	for k, v := range conversionMetadata {
+		msg.Metadata[k] = v
+	}
 
 	handler := a.Handler()
 	if handler == nil {
@@ -1247,11 +1290,9 @@ func (a *Adapter) UpdateMessage(ctx context.Context, channelID, messageTS string
 	return nil
 }
 
-
 // SUPPORTED_COMMANDS lists all slash commands supported by the system.
 // Used for matching #<command> prefix in messages (thread support).
 var SUPPORTED_COMMANDS = []string{"/reset", "/dc"}
-
 
 // isSupportedCommand checks if a command (with / prefix) is in the supported commands list.
 func isSupportedCommand(cmd string) bool {
@@ -1296,4 +1337,17 @@ func convertHashPrefixToSlash(text string) (string, bool) {
 	}
 
 	return text, false
+}
+
+// preprocessMessageText handles #<command> to /<command> conversion and returns
+// the processed text along with metadata additions for the message.
+// Returns the processed text and a metadata map.
+func preprocessMessageText(originalText string) (string, map[string]any) {
+	metadata := make(map[string]any)
+	processed, converted := convertHashPrefixToSlash(originalText)
+	if converted {
+		metadata["converted_from_hash"] = true
+		metadata["original_text"] = originalText
+	}
+	return processed, metadata
 }

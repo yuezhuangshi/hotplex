@@ -100,6 +100,10 @@ type StreamCallback struct {
 	processor    *ProcessorChain // Message processor chain
 	blockBuilder *slack.BlockBuilder
 
+	// Thinking message state for updates
+	thinkingChannelID string // Channel ID for thinking message updates
+	thinkingMessageTS string // Message TS for thinking message updates
+
 	// Stream state for throttled updates
 	streamState *StreamState
 }
@@ -187,25 +191,130 @@ func (c *StreamCallback) handleThinking(data any) error {
 		"data_type", fmt.Sprintf("%T", data),
 		"event_data", thinkingContent,
 		"is_first", c.isFirst,
-		"thinking_sent", c.thinkingSent)
+		"thinking_sent", c.thinkingSent,
+		"thinking_channel_id", c.thinkingChannelID,
+		"thinking_message_ts", c.thinkingMessageTS)
 
 	// Skip empty thinking content
 	if thinkingContent == "" {
 		return nil
 	}
 
+	blocks := c.blockBuilder.BuildThinkingBlock(thinkingContent)
+
 	if c.isFirst {
 		// First thinking event - create new message
 		c.isFirst = false
 		c.thinkingSent = true
 
-		blocks := c.blockBuilder.BuildThinkingBlock(thinkingContent)
-		return c.sendBlockMessage(string(provider.EventTypeThinking), blocks, true)
+		// Send new message and capture ts for future updates
+		msg, err := c.buildThinkingMessage(blocks, true)
+		if err != nil {
+			return err
+		}
+
+		if err := c.sendMessageAndGetTS(msg); err != nil {
+			return err
+		}
+
+		// Extract ts from metadata after successful send
+		if ts, ok := msg.Metadata["message_ts"].(string); ok && ts != "" {
+			c.thinkingMessageTS = ts
+			if channelID, ok := msg.Metadata["channel_id"].(string); ok {
+				c.thinkingChannelID = channelID
+			}
+			c.logger.Debug("Captured thinking message ts for updates", "ts", ts, "channel_id", c.thinkingChannelID)
+		}
+
+		return nil
 	} else if c.thinkingSent {
 		// Subsequent thinking event - update the existing message
 		// This allows streaming thinking content updates
-		blocks := c.blockBuilder.BuildThinkingBlock(thinkingContent)
+		if c.thinkingMessageTS != "" && c.thinkingChannelID != "" {
+			// Use message_ts to update existing message
+			msg, err := c.buildThinkingMessage(blocks, false)
+			if err != nil {
+				return err
+			}
+			msg.Metadata["message_ts"] = c.thinkingMessageTS
+			msg.Metadata["channel_id"] = c.thinkingChannelID
+
+			return c.adapters.SendMessage(c.ctx, c.platform, c.sessionID, msg)
+		}
+
+		// Fallback: send as new message if we don't have ts
 		return c.sendBlockMessage(string(provider.EventTypeThinking), blocks, false)
+	}
+
+	return nil
+}
+
+// buildThinkingMessage constructs a thinking message with proper metadata
+func (c *StreamCallback) buildThinkingMessage(blocks []map[string]any, isFirst bool) (*ChatMessage, error) {
+	metadata := c.copyMessageMetadata()
+	metadata["stream"] = true
+	metadata["event_type"] = string(provider.EventTypeThinking)
+	metadata["is_final"] = isFirst
+
+	var blocksAny []any
+	for _, b := range blocks {
+		blocksAny = append(blocksAny, b)
+	}
+
+	return &ChatMessage{
+		Platform:  c.platform,
+		SessionID: c.sessionID,
+		Content:   string(provider.EventTypeThinking),
+		Metadata:  metadata,
+		RichContent: &base.RichContent{
+			Blocks: blocksAny,
+		},
+	}, nil
+}
+
+// sendMessageAndGetTS sends a message and populates message_ts in metadata
+func (c *StreamCallback) sendMessageAndGetTS(msg *ChatMessage) error {
+	if c.adapters == nil {
+		c.logger.Debug("No adapters, skipping message send", "platform", c.platform)
+		return nil
+	}
+
+	// Process message through processor chain
+	processedMsg, err := c.processor.Process(c.ctx, msg)
+	if err != nil {
+		c.logger.Error("Message processing failed",
+			"platform", c.platform,
+			"session_id", c.sessionID,
+			"error", err)
+		processedMsg = msg
+	}
+
+	if processedMsg == nil {
+		c.logger.Debug("Message dropped by processor",
+			"platform", c.platform,
+			"session_id", c.sessionID)
+		return nil
+	}
+
+	// Send the message - adapter will populate message_ts in metadata
+	if err := c.adapters.SendMessage(c.ctx, c.platform, c.sessionID, processedMsg); err != nil {
+		return err
+	}
+
+	// Copy message_ts back to original msg metadata if present in processedMsg
+	if processedMsg.Metadata != nil {
+		if ts, ok := processedMsg.Metadata["message_ts"].(string); ok && ts != "" {
+			if msg.Metadata == nil {
+				msg.Metadata = make(map[string]any)
+			}
+			msg.Metadata["message_ts"] = ts
+		}
+		if channelID, ok := processedMsg.Metadata["channel_id"].(string); ok && channelID != "" {
+			if msg.Metadata == nil {
+				msg.Metadata = make(map[string]any)
+			}
+			msg.Metadata["channel_id"] = channelID
+		}
 	}
 
 	return nil

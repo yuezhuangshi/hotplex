@@ -300,7 +300,11 @@ func (s *SocketModeConnection) handleMessage(data []byte) {
 	}
 
 	// Log all incoming messages for debugging
-	s.logger.Debug("Received WebSocket message", "type", msg.Type, "envelope_id", msg.EnvelopeID)
+	s.logger.Info("[SLACK_WS_MESSAGE] Received WebSocket message",
+		"type", msg.Type,
+		"envelope_id", msg.EnvelopeID,
+		"payload_len", len(msg.Payload),
+		"body_len", len(msg.Body))
 
 	switch msg.Type {
 	case "hello":
@@ -316,20 +320,23 @@ func (s *SocketModeConnection) handleMessage(data []byte) {
 	case "events_api":
 		// Socket Mode uses "events_api" with "payload" field
 		// payload contains the full event_callback structure
-		s.logger.Debug("events_api received", "envelope_id", msg.EnvelopeID, "payload_len", len(msg.Payload))
+		s.logger.Info("[SLACK_EVENTS_API] events_api received",
+			"envelope_id", msg.EnvelopeID,
+			"payload_len", len(msg.Payload))
 		if len(msg.Payload) > 0 {
 			s.handleEventsAPI(msg.Payload, msg.EnvelopeID)
 		} else {
-			s.logger.Warn("events_api with empty payload", "raw_message", string(data))
+			s.logger.Warn("events_api with empty payload")
 		}
 
 	case "slash_commands":
 		// Slash commands are sent as direct message type in Socket Mode
-		s.logger.Debug("slash_commands received", "envelope_id", msg.EnvelopeID)
+		s.logger.Info("[SLACK_SLASH_COMMAND] slash_commands received",
+			"envelope_id", msg.EnvelopeID)
 		if len(msg.Payload) > 0 {
 			s.handleSlashCommands(msg.Payload, msg.EnvelopeID)
 		} else {
-			s.logger.Warn("slash_commands with empty payload", "raw_message", string(data))
+			s.logger.Warn("slash_commands with empty payload")
 		}
 	case "event_callback":
 		// Fallback for HTTP webhook compatibility
