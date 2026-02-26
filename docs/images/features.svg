@@ -88,14 +88,13 @@
     <text x="108" y="135" text-anchor="middle" class="text-sub">Embedded &amp; Gateway Modes</text>
   </g>
 
-  <!-- 7. AI Provider (Claude-inspired icon) -->
+  <!-- 7. AI Provider (Coding CLI symbol) -->
   <g transform="translate(525, 230)">
     <rect width="215" height="160" rx="12" class="feature-card" />
     <circle cx="108" cy="55" r="32" class="icon-bg c-brain" />
-    <path d="M102 38 Q108 34 114 38 L118 45 Q122 52 118 60 L110 75 Q108 78 106 75 L98 60 Q94 52 98 45 Z" class="icon-stroke c-brain" style="stroke-width: 2.5; fill: none;"/>
-    <path d="M100 50 Q108 45 116 50 M102 58 Q108 53 114 58" class="icon-stroke c-brain" style="stroke-width: 1.5; stroke-opacity: 0.6;"/>
+    <path d="M96 48 L88 55 L96 62 M120 48 L128 55 L120 62 M112 42 L104 68" class="icon-stroke c-brain" style="stroke-width: 3.5;"/>
     <text x="108" y="115" text-anchor="middle" class="text-title">AI Provider</text>
-    <text x="108" y="135" text-anchor="middle" class="text-sub">Claude-Native Optimization</text>
+    <text x="108" y="135" text-anchor="middle" class="text-sub">Coding CLI Optimization</text>
   </g>
 
   <!-- 8. PGID Isolation -->
