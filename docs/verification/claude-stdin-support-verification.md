@@ -276,18 +276,21 @@ if msg.Subtype == "plan_generation" {
 - ✅ `plan_generation` subtype 可被识别
 - ✅ 无需 stdin 响应 (只读模式)
 - ⚠️ HotPlex 需添加 subtype 检查逻辑
+- ✅ 存在隐藏的 `exit_plan_mode` 工具用于退出
+
+**关键发现**: Claude Code 有隐藏的 `exit_plan_mode` 工具
+
+1. Claude 完成计划后调用此工具
+2. 等待用户明确批准
+3. 用户批准后切换回正常模式
+4. 退出时有 **Extra Cautious** 额外确认
+
+**用户选项**:
+- ✅ 批准并执行
+- 📝 修改计划
+- ❌ 取消
 
 **建议**:
-```go
-// provider/claude_provider.go ParseEvent 方法
-case "thinking":
-    if msg.Subtype == "plan_generation" {
-        event.Type = EventTypePlanMode
-    } else {
-        event.Type = EventTypeThinking
-    }
-    // 继续处理内容...
-```
 
 ---
 
