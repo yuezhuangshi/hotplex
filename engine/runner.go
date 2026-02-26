@@ -141,7 +141,7 @@ func (r *Engine) Execute(ctx context.Context, cfg *types.Config, prompt string, 
 			Status:          "running",
 			TotalDurationMs: 0,
 		}
-		_ = callbackSafe("thinking", event.NewEventWithMeta("thinking", "Initializing...", meta))
+		_ = callbackSafe("thinking", event.NewEventWithMeta("thinking", "Thinking...", meta))
 	}
 
 	r.logger.Info("Engine: starting execution pipeline",
