@@ -25,6 +25,7 @@ type SlashCommandRateLimiter struct {
 	lastUsed map[string]time.Time
 	rate     rate.Limit
 	burst    int
+	done     chan struct{} // Signal to stop cleanup goroutine
 }
 
 // NewSlashCommandRateLimiter creates a new rate limiter with default settings
@@ -48,12 +49,18 @@ func NewSlashCommandRateLimiterWithConfig(rps float64, burst int) *SlashCommandR
 		lastUsed: make(map[string]time.Time),
 		rate:     rate.Limit(rps),
 		burst:    burst,
+		done:     make(chan struct{}),
 	}
 
 	// Start cleanup goroutine
 	go rl.cleanupLoop()
 
 	return rl
+}
+
+// Stop gracefully stops the rate limiter cleanup goroutine
+func (r *SlashCommandRateLimiter) Stop() {
+	close(r.done)
 }
 
 // Allow checks if a request from the given user is allowed
@@ -78,8 +85,13 @@ func (r *SlashCommandRateLimiter) cleanupLoop() {
 	ticker := time.NewTicker(cleanupInterval)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		r.cleanup()
+	for {
+		select {
+		case <-r.done:
+			return
+		case <-ticker.C:
+			r.cleanup()
+		}
 	}
 }
 

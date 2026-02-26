@@ -401,7 +401,7 @@ func (a *Adapter) handleEventCallback(ctx context.Context, eventData json.RawMes
 	}
 
 	// Skip bot messages
-	if msgEvent.BotID != "" {
+	if msgEvent.BotID != "" || msgEvent.User == a.config.BotUserID {
 		a.Logger().Debug("Skipping bot message", "bot_id", msgEvent.BotID)
 		return
 	}
@@ -482,6 +482,11 @@ func (a *Adapter) Stop() error {
 		_ = a.socketMode.Stop()
 	}
 
+	// Stop rate limiter cleanup goroutine
+	if a.rateLimiter != nil {
+		a.rateLimiter.Stop()
+	}
+
 	a.webhook.Stop()
 	return a.Adapter.Stop()
 }
@@ -511,7 +516,7 @@ func (a *Adapter) handleSocketModeEvent(eventType string, data json.RawMessage) 
 	}
 
 	// Skip bot messages (unless it's a message we should process)
-	if msgEvent.BotID != "" {
+	if msgEvent.BotID != "" || msgEvent.User == a.config.BotUserID {
 		a.Logger().Debug("Skipping bot message", "bot_id", msgEvent.BotID)
 		return
 	}

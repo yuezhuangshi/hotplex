@@ -16,7 +16,7 @@ hotplex follows a layered architecture with strict visibility rules, separating 
 - **`provider/`**: The abstraction layer for diverse AI CLI agents. Contains the `Provider` interface and concrete implementations for `claude-code` and `opencode`.
 - **`types/`**: Fundamental data structures (`Config`, `StreamMessage`, `UsageStats`).
 - **`event/`**: Unified event protocol and callback definitions (`Callback`, `EventWithMeta`).
-- **`chatapps/`**: **Platform Anti-Corruption Layer**. Connects HotPlex to social platforms (Slack, Discord, Telegram, etc.).
+- **`chatapps/`**: **Platform Access Layer**. Connects HotPlex to social platforms (Slack, Discord, Telegram, etc.).
   - `engine_handler.go`: Bridges platform messages to Engine commands.
   - `manager.go`: Lifecycle management for bot adapters.
   - `processor_*.go`: Middleware chain for message formatting, rate limiting, and thread management.
