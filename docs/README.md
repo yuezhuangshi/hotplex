@@ -26,7 +26,7 @@ Deep-dive guides for specific AI CLI agents supported by HotPlex.
 - **[OpenCode Provider](providers/opencode.md)**: Integration with the OpenCode CLI ecosystem.
 
 ## 💬 ChatApps Integration
-- **[ChatApps Guide](chatapps/chatapps-guide.md)**: Architecture design and user manual for chat platform integration.
+- **[ChatApps Guide](chatapps/chatapps-architecture.md)**: Architecture design and user manual for chat platform integration.
 - **[Slack Adapter](chatapps/chatapps-slack.md)**: User & developer manual for Slack full-duplex communication.
 - **[Slack Block Mapping](chatapps/engine-events-slack-mapping.md)**: Deep dive into Engine Event → Slack Block Kit mapping best practices.
 

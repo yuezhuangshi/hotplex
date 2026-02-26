@@ -34,22 +34,28 @@
   <rect x="50" y="80" width="900" height="140" rx="12" class="layer-bg"/>
   <text x="70" y="105" class="text-layer">1. Access &amp; Interface Layer</text>
 
-  <g transform="translate(100, 125)">
-    <rect width="250" height="70" rx="8" class="box-accent" />
-    <text x="125" y="30" text-anchor="middle" class="text-label" style="fill:#0366d6">Multi-Language SDKs</text>
-    <text x="125" y="52" text-anchor="middle" class="text-code">Go | Python | TypeScript</text>
+  <g transform="translate(80, 125)">
+    <rect width="200" height="70" rx="8" class="box-accent" />
+    <text x="100" y="30" text-anchor="middle" class="text-label" style="fill:#0366d6">Multi-Language SDKs</text>
+    <text x="100" y="52" text-anchor="middle" class="text-code">Go | Python | TS</text>
   </g>
 
-  <g transform="translate(375, 125)">
-    <rect width="250" height="70" rx="8" class="box-success" />
-    <text x="125" y="30" text-anchor="middle" class="text-label" style="fill:#28a745">hotplex Proxy Server</text>
-    <text x="125" y="52" text-anchor="middle" class="text-sub">WebSocket &amp; OpenCode HTTP</text>
+  <g transform="translate(300, 125)">
+    <rect width="200" height="70" rx="8" class="box-success" />
+    <text x="100" y="30" text-anchor="middle" class="text-label" style="fill:#28a745">hotplex Proxy</text>
+    <text x="100" y="52" text-anchor="middle" class="text-sub">WS &amp; OpenCode HTTP</text>
   </g>
 
-  <g transform="translate(650, 125)">
-    <rect width="250" height="70" rx="8" class="box-purple" />
-    <text x="125" y="30" text-anchor="middle" class="text-label" style="fill:#6f42c1">Observability &amp; Metrics</text>
-    <text x="125" y="52" text-anchor="middle" class="text-code">/metrics | /health (K8s)</text>
+  <g transform="translate(520, 125)">
+    <rect width="200" height="70" rx="8" class="box-orange" />
+    <text x="100" y="30" text-anchor="middle" class="text-label" style="fill:#e36209">ChatApp (Slack)</text>
+    <text x="100" y="52" text-anchor="middle" class="text-sub">Socket Mode / Webhook</text>
+  </g>
+
+  <g transform="translate(740, 125)">
+    <rect width="180" height="70" rx="8" class="box-purple" />
+    <text x="90" y="30" text-anchor="middle" class="text-label" style="fill:#6f42c1">Observability</text>
+    <text x="90" y="52" text-anchor="middle" class="text-code">/metrics | /health</text>
   </g>
 
 
@@ -112,9 +118,12 @@
 
   <!-- Connecting Lines -->
   <!-- Layer 1 to Layer 2: Converging stepped lines -->
-  <path d="M 225 195 L 225 230 L 500 230" class="arrow" />
-  <path d="M 775 195 L 775 230 L 500 230" class="arrow" />
-  <path d="M 500 195 L 500 295" class="arrow" marker-end="url(#arrowhead)"/>
+  <path d="M 180 230 L 830 230" class="arrow" /> <!-- Horizontal junction line -->
+  <path d="M 180 195 L 180 230" class="arrow" />
+  <path d="M 400 195 L 400 230" class="arrow" />
+  <path d="M 620 195 L 620 230" class="arrow" />
+  <path d="M 830 195 L 830 230" class="arrow" />
+  <path d="M 500 230 L 500 295" class="arrow" marker-end="url(#arrowhead)"/>
 
   <!-- Inside Engine to Sub-components: No arrows for internal Go package composition -->
   <path d="M 185 380 L 185 410" class="arrow" />
