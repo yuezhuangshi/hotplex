@@ -132,7 +132,13 @@ When looking for where to make changes, follow this map:
 
 ---
 
-## 5. Reference
+## 5. ChatApps Layer Integration
+
+The `chatapps/` layer is the primary user-facing interface for many integrations. When modifying core engine logic, ensure that `chatapps/engine_handler.go` is updated if event structures or execution flows change. This layer enforces platform-specific constraints (e.g., Slack thread isolation) and should be treated as a first-class citizen alongside the WebSocket gateway.
+
+---
+
+## 6. Reference
 
 ### 5.1 OpenClaw (Local)
 

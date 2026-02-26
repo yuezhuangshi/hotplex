@@ -16,6 +16,10 @@ hotplex follows a layered architecture with strict visibility rules, separating 
 - **`provider/`**: The abstraction layer for diverse AI CLI agents. Contains the `Provider` interface and concrete implementations for `claude-code` and `opencode`.
 - **`types/`**: Fundamental data structures (`Config`, `StreamMessage`, `UsageStats`).
 - **`event/`**: Unified event protocol and callback definitions (`Callback`, `EventWithMeta`).
+- **`chatapps/`**: **Platform Anti-Corruption Layer**. Connects HotPlex to social platforms (Slack, Discord, Telegram, etc.).
+  - `engine_handler.go`: Bridges platform messages to Engine commands.
+  - `manager.go`: Lifecycle management for bot adapters.
+  - `processor_*.go`: Middleware chain for message formatting, rate limiting, and thread management.
 - **`internal/engine/`**: The core execution engine. Manages the `SessionPool` (process multiplexing) and `Session` (I/O piping and state management).
 - **`internal/persistence/`**: Session durability markers and pool recovery logic.
 - **`internal/security/`**: The Regex-based WAF (`Detector`) for command auditing.
@@ -61,6 +65,8 @@ Standardizes diverse CLI protocols into a unified "HotPlex Event Stream":
 
 ```mermaid
 sequenceDiagram
+    participant Social as "Social Platforms (Slack/Discord/etc.)"
+    participant ChatApps as "chatapps.EngineHandler"
     participant Client as "Client (WebSocket/SDK)"
     participant Server as "internal/server"
     participant Engine as "engine.Engine"
@@ -69,8 +75,14 @@ sequenceDiagram
     participant Provider as "provider.Provider"
     participant Proc as "CLI Process (OS)"
     
+    Note over Social, ChatApps: AI Bot Integration Path
+    Social->>ChatApps: Webhook / Message Event
+    ChatApps->>Engine: Execute(Config, Prompt)
+    
+    Note over Client, Server: Direct API Path
     Client->>Server: Request (WebSocket Message / POST)
     Server->>Engine: Execute(Config, Prompt)
+    
     Engine->>Engine: Check WAF (Detector)
     Engine->>Hooks: Start Trace Span
     Engine->>Pool: GetOrCreateSession(ID)
@@ -87,8 +99,14 @@ sequenceDiagram
         Proc-->>Provider: Raw tool specific output
         Provider-->>Engine: Normalized ProviderEvent
         Engine-->>Hooks: Emit Event (Webhook/Log)
-        Engine-->>Server: Public EventWithMeta
-        Server-->>Client: WebSocket/SSE Event
+        
+        alt Routing back to ChatApps
+            Engine-->>ChatApps: Callback Event
+            ChatApps-->>Social: Platform-specific Response
+        else Routing back to API
+            Engine-->>Server: Public EventWithMeta
+            Server-->>Client: WebSocket/SSE Event
+        end
     end
     
     Engine->>Pool: Touch(ID) to refresh idle timer
