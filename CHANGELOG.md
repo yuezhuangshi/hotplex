@@ -35,7 +35,8 @@ This release delivers a production-ready Slack UX experience with real-time feed
 - **Socket Mode AppToken** - Properly pass AppToken to Slack SDK
 - **@mention Routing** - Correctly route @mention and #command messages to handler
 - **Quick CLI Response** - Delete thinking message when CLI responds immediately
-- **Link Checker** - Limit to docs-site and scripts directories only
+- **Link Checker** - Fixed several internal broken links in documentation site
+- **Docs Synchronization** - Unified synchronization of all ChatApps documents to docs-site
 
 ### Documentation
 - **Slack UX Spec** - Consolidated research docs into unified spec (`docs/chatapps/engine-events-slack-ux-spec.md`)
