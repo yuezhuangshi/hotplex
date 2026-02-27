@@ -57,3 +57,6 @@ docs/images/png/
 /docs-site/providers/
 !/docs-site/public/
 !/docs-site/.vitepress/
+
+# slack-go sdk
+docs/slack-0.18.0

@@ -11,17 +11,19 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hrygo/hotplex/chatapps/base"
+	"github.com/hrygo/hotplex/chatapps/command"
 	"github.com/hrygo/hotplex/engine"
 	"github.com/hrygo/hotplex/internal/panicx"
 	"github.com/hrygo/hotplex/telemetry"
 
 	"github.com/slack-go/slack"
+	"github.com/slack-go/slack/slackevents"
+	"github.com/slack-go/slack/socketmode"
 )
 
 type Adapter struct {
@@ -36,9 +38,17 @@ type Adapter struct {
 	eng                 *engine.Engine
 	rateLimiter         *SlashCommandRateLimiter
 
+	// Command registry
+	cmdRegistry *command.Registry
+
 	// Slack SDK clients
-	client         *slack.Client      // Official Slack SDK client
-	messageBuilder *MessageBuilder    // Converts base.ChatMessage to Slack blocks
+	client            *slack.Client      // Official Slack SDK client (HTTP mode)
+	socketModeClient  *socketmode.Client // Socket Mode client (WebSocket)
+	messageBuilder    *MessageBuilder    // Converts base.ChatMessage to Slack blocks
+	socketModeCtx     context.Context    // Socket Mode context for cancellation
+	socketModeCancel  context.CancelFunc // Socket Mode cancel function
+	socketModeRunning bool               // Whether Socket Mode is running
+	socketModeMu      sync.Mutex         // Protects socketModeRunning
 }
 
 func NewAdapter(config *Config, logger *slog.Logger, opts ...base.AdapterOption) *Adapter {
@@ -57,6 +67,7 @@ func NewAdapter(config *Config, logger *slog.Logger, opts ...base.AdapterOption)
 		webhook:          base.NewWebhookRunner(logger),
 		rateLimiter:      NewSlashCommandRateLimiterWithConfig(config.SlashCommandRateLimit, rateBurst),
 		messageBuilder:   NewMessageBuilder(), // Converts base.ChatMessage to Slack blocks using official SDK
+		cmdRegistry:      command.NewRegistry(),
 	}
 
 	// Initialize Slack SDK client (github.com/slack-go/slack)
@@ -64,22 +75,34 @@ func NewAdapter(config *Config, logger *slog.Logger, opts ...base.AdapterOption)
 		a.client = slack.New(config.BotToken)
 	}
 
-	// Register HTTP webhook handlers
-	handlers := make(map[string]http.HandlerFunc)
-	handlers[a.eventPath] = a.handleEvent
-	handlers[a.interactivePath] = a.handleInteractive
-	handlers[a.slashCommandPath] = a.handleSlashCommand
+	// Prepare HTTP handlers for HTTP mode (not needed for Socket Mode)
+	var httpOpts []base.AdapterOption
+	if !config.IsSocketMode() || config.AppToken == "" {
+		handlers := make(map[string]http.HandlerFunc)
+		handlers[a.eventPath] = a.handleEvent
+		handlers[a.interactivePath] = a.handleInteractive
+		handlers[a.slashCommandPath] = a.handleSlashCommand
 
-	// Build HTTP handler map
-	for path, handler := range handlers {
-		opts = append(opts, base.WithHTTPHandler(path, handler))
+		// Build HTTP handler options
+		for path, handler := range handlers {
+			httpOpts = append(httpOpts, base.WithHTTPHandler(path, handler))
+		}
 	}
 
-	// Create base adapter
+	// Combine user options with HTTP options
+	allOpts := append(opts, httpOpts...)
+
+	// Create base adapter first (needed for Logger)
 	a.Adapter = base.NewAdapter("slack", base.Config{
 		ServerAddr:   config.ServerAddr,
 		SystemPrompt: config.SystemPrompt,
-	}, logger, opts...)
+	}, logger, allOpts...)
+
+	// Initialize Socket Mode client if enabled (preferred mode)
+	if config.IsSocketMode() && config.AppToken != "" {
+		a.Logger().Info("Initializing Socket Mode client", "mode", config.Mode)
+		a.socketModeClient = socketmode.New(a.client)
+	}
 
 	// Set default sender that uses MessageBuilder + Slack SDK
 	if config.BotToken != "" {
@@ -92,6 +115,29 @@ func NewAdapter(config *Config, logger *slog.Logger, opts ...base.AdapterOption)
 // SetEngine sets the engine for the adapter (used for slash commands)
 func (a *Adapter) SetEngine(eng *engine.Engine) {
 	a.eng = eng
+
+	// Register command executors after engine is set
+	a.registerCommands()
+}
+
+// registerCommands registers all command executors to the registry
+func (a *Adapter) registerCommands() {
+	if a.eng == nil || a.cmdRegistry == nil {
+		return
+	}
+
+	// Get workDir from config or use default (empty string will use os.Getwd() in executor)
+	workDir := ""
+	if a.config != nil {
+		// TODO: Add WorkDir to Config if needed
+		// workDir = a.config.WorkDir
+	}
+
+	// Register /reset command
+	a.cmdRegistry.Register(command.NewResetExecutor(a.eng, workDir))
+
+	// Register /dc command
+	a.cmdRegistry.Register(command.NewDisconnectExecutor(a.eng))
 }
 
 func (a *Adapter) SendMessage(ctx context.Context, sessionID string, msg *base.ChatMessage) error {
@@ -442,24 +488,11 @@ func (a *Adapter) handleEventCallback(ctx context.Context, eventData json.RawMes
 	processedText, conversionMetadata := preprocessMessageText(msgEvent.Text)
 	if _, converted := conversionMetadata["converted_from_hash"]; converted {
 		a.Logger().Debug("Converted # prefix to / prefix", "original", msgEvent.Text, "converted", processedText)
-	}
 
-	// Special handling for #reset command in threads (HTTP webhook path)
-	if processedText == "/reset" || strings.HasPrefix(processedText, "/reset ") {
-		a.Logger().Info("Detected reset command in thread message (HTTP webhook)",
-			"original", msgEvent.Text, "converted", processedText)
-		cmd := SlashCommand{
-			Command:     "/reset",
-			UserID:      msgEvent.User,
-			ChannelID:   msgEvent.Channel,
-			ResponseURL: "",
+		// Check if converted command should be executed immediately
+		if a.processHashCommand(processedText, msgEvent.User, msgEvent.Channel) {
+			return
 		}
-		panicx.SafeGo(a.Logger(), func() {
-			if err := a.handleResetCommand(cmd); err != nil {
-				a.Logger().Error("handleResetCommand failed", "error", err)
-			}
-		})
-		return
 	}
 
 	sessionID := a.GetOrCreateSession(msgEvent.User, msgEvent.BotUserID, msgEvent.Channel)
@@ -508,107 +541,201 @@ func (a *Adapter) Stop() error {
 
 // Start starts the adapter
 func (a *Adapter) Start(ctx context.Context) error {
+	// Start Socket Mode if enabled (preferred mode)
+	if a.socketModeClient != nil {
+		a.startSocketMode(ctx)
+	}
+
+	// Start HTTP server if needed (for HTTP mode or fallback)
 	return a.Adapter.Start(ctx)
 }
 
-// handleSocketModeEvent handles incoming events from Socket Mode
-func (a *Adapter) handleSocketModeEvent(eventType string, data json.RawMessage) {
-	a.Logger().Debug("[SLACK_SOCKET_MODE] Socket Mode event received",
-		"event_type", eventType,
-		"data_len", len(data))
-
-	var msgEvent MessageEvent
-	if err := json.Unmarshal(data, &msgEvent); err != nil {
-		a.Logger().Error("Parse socket mode message event failed", "error", err)
+// startSocketMode starts the Socket Mode event loop
+func (a *Adapter) startSocketMode(ctx context.Context) {
+	a.socketModeMu.Lock()
+	if a.socketModeRunning {
+		a.socketModeMu.Unlock()
+		a.Logger().Warn("Socket Mode already running")
 		return
 	}
+	a.socketModeRunning = true
+	a.socketModeCtx, a.socketModeCancel = context.WithCancel(ctx)
+	a.socketModeMu.Unlock()
 
-	// Skip bot messages (unless it's a message we should process)
-	if msgEvent.BotID != "" || msgEvent.User == a.config.BotUserID {
-		a.Logger().Debug("Skipping bot message", "bot_id", msgEvent.BotID)
-		return
-	}
+	go func() {
+		defer panicx.Recover(a.Logger(), "Slack Socket Mode")
+		defer func() {
+			a.socketModeMu.Lock()
+			a.socketModeRunning = false
+			a.socketModeMu.Unlock()
+		}()
 
-	// Skip certain subtypes that don't need processing
-	// Reference: OpenClaw allows file_share and bot_message, skips message_changed/deleted/thread_broadcast
-	switch msgEvent.SubType {
-	case "message_changed", "message_deleted", "thread_broadcast":
-		a.Logger().Debug("Skipping message subtype", "subtype", msgEvent.SubType)
-		return
-	}
-
-	if msgEvent.Text == "" {
-		return
-	}
-
-	// Check user permission
-	if !a.config.IsUserAllowed(msgEvent.User) {
-		a.Logger().Debug("User blocked", "user_id", msgEvent.User)
-		return
-	}
-
-	// Check channel permission
-	if !a.config.ShouldProcessChannel(msgEvent.ChannelType, msgEvent.Channel) {
-		a.Logger().Debug("Channel blocked by policy", "channel_type", msgEvent.ChannelType, "channel_id", msgEvent.Channel)
-		return
-	}
-
-	// Check mention policy for group/channel messages
-	if msgEvent.ChannelType == "channel" || msgEvent.ChannelType == "group" {
-		if a.config.GroupPolicy == "mention" && !a.config.ContainsBotMention(msgEvent.Text) {
-			a.Logger().Debug("Message ignored - bot not mentioned", "channel_type", msgEvent.ChannelType, "policy", "mention")
-			return
-		}
-	}
-
-	// Convert #<command> prefix to /<command> for thread support
-	// Slack threads don't support slash commands, so we allow #reset, #dc, etc.
-	processedText, conversionMetadata := preprocessMessageText(msgEvent.Text)
-	if _, converted := conversionMetadata["converted_from_hash"]; converted {
-		a.Logger().Debug("Converted # prefix to / prefix", "original", msgEvent.Text, "converted", processedText)
-	}
-
-	// Special handling for #reset command in threads (Socket Mode path)
-	if processedText == "/reset" || strings.HasPrefix(processedText, "/reset ") {
-		a.Logger().Info("Detected reset command in thread message (Socket Mode)",
-			"original", msgEvent.Text, "converted", processedText)
-		cmd := SlashCommand{
-			Command:     "/reset",
-			UserID:      msgEvent.User,
-			ChannelID:   msgEvent.Channel,
-			ResponseURL: "",
-		}
-		panicx.SafeGo(a.Logger(), func() {
-			if err := a.handleResetCommand(cmd); err != nil {
-				a.Logger().Error("handleResetCommand failed", "error", err)
+		for {
+			select {
+			case <-a.socketModeCtx.Done():
+				a.Logger().Info("Socket Mode event loop stopped")
+				return
+			case evt, ok := <-a.socketModeClient.Events:
+				if !ok {
+					a.Logger().Info("Socket Mode events channel closed")
+					return
+				}
+				a.handleSocketModeEvent(evt)
 			}
-		})
+		}
+	}()
+
+	// Run Socket Mode client
+	go func() {
+		defer panicx.Recover(a.Logger(), "Slack Socket Mode Run")
+		a.socketModeClient.RunContext(a.socketModeCtx)
+	}()
+
+	a.Logger().Info("Socket Mode started")
+}
+
+// handleSocketModeEvent dispatches Socket Mode events
+func (a *Adapter) handleSocketModeEvent(evt socketmode.Event) {
+	switch evt.Type {
+	case socketmode.EventTypeHello:
+		a.Logger().Info("Socket Mode connected")
+
+	case socketmode.EventTypeConnecting:
+		a.Logger().Info("Connecting to Slack with Socket Mode...")
+
+	case socketmode.EventTypeConnected:
+		a.Logger().Info("Connected to Slack with Socket Mode")
+
+	case socketmode.EventTypeConnectionError:
+		a.Logger().Error("Socket Mode connection error")
+
+	case socketmode.EventTypeEventsAPI:
+		a.handleSocketModeEventsAPI(evt)
+
+	case socketmode.EventTypeSlashCommand:
+		a.handleSocketModeSlashCommand(evt)
+
+	case socketmode.EventTypeInteractive:
+		a.handleSocketModeInteractive(evt)
+
+	default:
+		a.Logger().Debug("Unhandled Socket Mode event", "type", evt.Type)
+	}
+}
+
+// handleSocketModeEventsAPI handles Events API events from Socket Mode
+func (a *Adapter) handleSocketModeEventsAPI(evt socketmode.Event) {
+	eventsAPIEvent, ok := evt.Data.(slackevents.EventsAPIEvent)
+	if !ok {
+		a.Logger().Error("Failed to cast EventsAPI event")
 		return
 	}
 
-	sessionID := a.GetOrCreateSession(msgEvent.User, msgEvent.BotUserID, msgEvent.Channel)
+	// Acknowledge the event
+	a.socketModeClient.Ack(*evt.Request)
+
+	switch eventsAPIEvent.Type {
+	case slackevents.CallbackEvent:
+		innerEvent := eventsAPIEvent.InnerEvent
+		switch ev := innerEvent.Data.(type) {
+		case *slackevents.AppMentionEvent:
+			a.handleAppMentionEvent(ev)
+		case *slackevents.MessageEvent:
+			a.handleSocketModeMessageEvent(ev)
+		}
+	default:
+		a.Logger().Debug("Unhandled EventsAPI type", "type", eventsAPIEvent.Type)
+	}
+}
+
+// handleAppMentionEvent handles app_mention events
+func (a *Adapter) handleAppMentionEvent(ev *slackevents.AppMentionEvent) {
+	a.Logger().Debug("App mention received", "user", ev.User, "channel", ev.Channel)
+
+	if !a.config.IsUserAllowed(ev.User) {
+		a.Logger().Debug("User blocked", "user_id", ev.User)
+		return
+	}
+
+	// Generate session and process message
+	sessionID := a.GetOrCreateSession(ev.User, a.config.BotUserID, ev.Channel)
+	userText := a.stripBotMention(ev.Text)
 
 	msg := &base.ChatMessage{
 		Platform:  "slack",
 		SessionID: sessionID,
-		UserID:    msgEvent.User,
-		Content:   processedText,
-		MessageID: msgEvent.TS,
+		UserID:    ev.User,
+		Content:   userText,
+		MessageID: ev.TimeStamp,
 		Timestamp: time.Now(),
 		Metadata: map[string]any{
-			"channel_id":   msgEvent.Channel,
-			"channel_type": msgEvent.ChannelType,
+			"channel_id": ev.Channel,
+		},
+	}
+
+	// Send to engine
+	a.Adapter.SendMessage(a.socketModeCtx, sessionID, msg)
+}
+
+// handleSocketModeMessageEvent handles message events via Socket Mode
+func (a *Adapter) handleSocketModeMessageEvent(ev *slackevents.MessageEvent) {
+	// Skip bot messages
+	if ev.BotID != "" || ev.User == a.config.BotUserID {
+		return
+	}
+
+	// Skip subtypes
+	switch ev.SubType {
+	case "message_changed", "message_deleted", "thread_broadcast", "bot_message":
+		return
+	}
+
+	if ev.Text == "" {
+		return
+	}
+
+	if !a.config.IsUserAllowed(ev.User) {
+		a.Logger().Debug("User blocked", "user_id", ev.User)
+		return
+	}
+
+	if !a.config.ShouldProcessChannel(ev.ChannelType, ev.Channel) {
+		a.Logger().Debug("Channel blocked by policy", "channel_type", ev.ChannelType)
+		return
+	}
+
+	// Convert #<command> prefix to /<command> for thread support
+	// Slack threads don't support slash commands, so we allow #reset, #dc, etc.
+	processedText, conversionMetadata := preprocessMessageText(ev.Text)
+	if _, converted := conversionMetadata["converted_from_hash"]; converted {
+		a.Logger().Debug("Converted # prefix to / prefix (Socket Mode)",
+			"original", ev.Text, "converted", processedText)
+
+		// Check if converted command should be executed immediately
+		if a.processHashCommand(processedText, ev.User, ev.Channel) {
+			return
+		}
+	}
+
+	sessionID := a.GetOrCreateSession(ev.User, a.config.BotUserID, ev.Channel)
+	userText := processedText
+
+	msg := &base.ChatMessage{
+		Platform:  "slack",
+		SessionID: sessionID,
+		UserID:    ev.User,
+		Content:   userText,
+		MessageID: ev.TimeStamp,
+		Timestamp: time.Now(),
+		Metadata: map[string]any{
+			"channel_id":   ev.Channel,
+			"channel_type": ev.ChannelType,
 		},
 	}
 
 	// Add thread info if present
-	if msgEvent.ThreadTS != "" {
-		msg.Metadata["thread_ts"] = msgEvent.ThreadTS
-	}
-
-	// Add subtype info for downstream processing
-	if msgEvent.SubType != "" {
-		msg.Metadata["subtype"] = msgEvent.SubType
+	if ev.ThreadTimeStamp != "" {
+		msg.Metadata["thread_ts"] = ev.ThreadTimeStamp
 	}
 
 	// Merge conversion metadata
@@ -616,13 +743,111 @@ func (a *Adapter) handleSocketModeEvent(eventType string, data json.RawMessage) 
 		msg.Metadata[k] = v
 	}
 
-	handler := a.Handler()
-	if handler == nil {
-		a.Logger().Error("Handler is nil, message will not be processed")
+	if ev.ThreadTimeStamp != "" {
+		msg.Metadata["thread_ts"] = ev.ThreadTimeStamp
+	}
+
+	a.Adapter.SendMessage(a.socketModeCtx, sessionID, msg)
+}
+
+// handleSocketModeSlashCommand handles slash commands via Socket Mode
+func (a *Adapter) handleSocketModeSlashCommand(evt socketmode.Event) {
+	cmd, ok := evt.Data.(slack.SlashCommand)
+	if !ok {
+		a.Logger().Error("Failed to cast SlashCommand")
 		return
 	}
-	a.Logger().Info("Forwarding message to handler", "sessionID", sessionID, "content", msg.Content, "subtype", msgEvent.SubType)
-	a.webhook.Run(context.Background(), handler, msg)
+
+	a.Logger().Debug("Slash command via Socket Mode", "command", cmd.Command, "text", cmd.Text)
+
+	// Check rate limit
+	if !a.rateLimiter.Allow(cmd.UserID) {
+		a.Logger().Warn("Rate limit exceeded", "user_id", cmd.UserID)
+		a.socketModeClient.Ack(*evt.Request, map[string]interface{}{
+			"text": "⚠️ Rate limit exceeded. Please wait a moment.",
+		})
+		return
+	}
+
+	// Acknowledge with loading message
+	a.socketModeClient.Ack(*evt.Request, map[string]interface{}{
+		"text": "Processing command...",
+	})
+
+	// Find session for command execution
+	baseSession := a.FindSessionByUserAndChannel(cmd.UserID, cmd.ChannelID)
+	var sessionID string
+	if baseSession != nil {
+		sessionID = baseSession.SessionID
+	}
+
+	// Create command request
+	req := &command.Request{
+		Command:     cmd.Command,
+		Text:        cmd.Text,
+		UserID:      cmd.UserID,
+		ChannelID:   cmd.ChannelID,
+		SessionID:   sessionID,
+		ResponseURL: cmd.ResponseURL,
+	}
+
+	// Execute command via registry
+	result, err := a.cmdRegistry.Execute(context.Background(), req, nil)
+	if err != nil {
+		a.Logger().Error("Command execution failed", "command", cmd.Command, "error", err)
+	} else if result != nil && result.Message != "" {
+		_ = a.sendCommandResponse(cmd.ResponseURL, cmd.ChannelID, result.Message)
+	}
+}
+
+// handleSocketModeInteractive handles interactive events via Socket Mode
+func (a *Adapter) handleSocketModeInteractive(evt socketmode.Event) {
+	callback, ok := evt.Data.(slack.InteractionCallback)
+	if !ok {
+		a.Logger().Error("Failed to cast InteractionCallback")
+		return
+	}
+
+	a.Logger().Debug("Interactive via Socket Mode", "type", callback.Type)
+
+	// Acknowledge the event
+	a.socketModeClient.Ack(*evt.Request)
+
+	switch callback.Type {
+	case slack.InteractionTypeBlockActions:
+		// Handle permission request buttons
+		for _, action := range callback.ActionCallback.BlockActions {
+			if action.ActionID == "perm_allow" || action.ActionID == "perm_deny" {
+				// Build a simple callback for permission handling
+				slackCallback := &SlackInteractionCallback{
+					Type:    "block_actions",
+					User:    CallbackUser{ID: callback.User.ID},
+					Channel: CallbackChannel{ID: callback.Channel.ID},
+					Message: CallbackMessage{Ts: callback.Message.Timestamp},
+					Actions: []SlackAction{
+						{
+							ActionID: action.ActionID,
+							BlockID:  action.BlockID,
+							Value:    action.Value,
+						},
+					},
+				}
+				a.handlePermissionCallback(slackCallback, slackCallback.Actions[0], nil)
+				return
+			}
+		}
+	default:
+		a.Logger().Debug("Unhandled interaction type", "type", callback.Type)
+	}
+}
+
+// stripBotMention removes bot mention from text
+func (a *Adapter) stripBotMention(text string) string {
+	if a.config.BotUserID == "" {
+		return text
+	}
+	mention := fmt.Sprintf("<@%s>", a.config.BotUserID)
+	return strings.TrimSpace(strings.ReplaceAll(text, mention, ""))
 }
 
 func (a *Adapter) handleInteractive(w http.ResponseWriter, r *http.Request) {
@@ -971,205 +1196,55 @@ func (a *Adapter) handleSlashCommand(w http.ResponseWriter, r *http.Request) {
 
 // processSlashCommand handles the slash command logic
 func (a *Adapter) processSlashCommand(cmd SlashCommand) {
-	switch cmd.Command {
-	case "/reset":
-		if err := a.handleResetCommand(cmd); err != nil {
-			a.Logger().Error("handleResetCommand failed", "command", cmd.Command, "error", err)
-		}
-	case "/dc":
-		if err := a.handleDisconnectCommand(cmd); err != nil {
-			a.Logger().Error("handleDisconnectCommand failed", "command", cmd.Command, "error", err)
-		}
-	default:
-		a.handleUnknownCommand(cmd)
-	}
-}
-
-// handleResetCommand processes /reset command to perform a hard reset of conversation context.
-//
-// /reset performs a physical reset by:
-// 1. Deleting the Claude Code project session file (~/.claude/projects/{workspace}/{ProviderSessionID}.jsonl)
-// 2. Deleting the HotPlex session marker (~/.hotplex/sessions/{sessionID}.lock)
-// 3. Terminating the session process
-//
-// Next message will cold-start with a fresh context.
-func (a *Adapter) handleResetCommand(cmd SlashCommand) error {
-	if a.eng == nil {
-		a.Logger().Error("Engine is nil")
-		return a.sendCommandResponse(cmd.ResponseURL, cmd.ChannelID, "❌ Internal error: Engine not initialized")
-	}
-
+	// Find session for command execution
 	baseSession := a.FindSessionByUserAndChannel(cmd.UserID, cmd.ChannelID)
-	if baseSession == nil {
-		a.Logger().Error("No active session found for /reset",
-			"channel_id", cmd.ChannelID, "user_id", cmd.UserID)
-		return a.sendCommandResponse(cmd.ResponseURL, cmd.ChannelID, "ℹ️ No active session found")
+	var sessionID string
+	if baseSession != nil {
+		sessionID = baseSession.SessionID
 	}
 
-	sessionID := baseSession.SessionID
-	a.Logger().Info("Found session for /reset",
-		"session_id", sessionID, "channel_id", cmd.ChannelID, "user_id", cmd.UserID)
-
-	// Get ProviderSessionID for Claude Code file deletion
-	sess, exists := a.eng.GetSession(sessionID)
-	if !exists {
-		a.Logger().Warn("Session not found in engine, proceeding with cleanup",
-			"session_id", sessionID)
+	// Create command request
+	req := &command.Request{
+		Command:     cmd.Command,
+		Text:        cmd.Text,
+		UserID:      cmd.UserID,
+		ChannelID:   cmd.ChannelID,
+		SessionID:   sessionID,
+		ResponseURL: cmd.ResponseURL,
 	}
 
-	// Step 1: Delete Claude Code project session file (using ProviderSessionID)
-	providerSessionID := ""
-	if sess != nil {
-		providerSessionID = sess.ProviderSessionID
-	}
-	deletedCount := a.deleteClaudeCodeSessionFile(providerSessionID)
-	a.Logger().Debug("Deleted Claude Code session files",
-		"session_id", sessionID, "provider_session_id", providerSessionID, "count", deletedCount)
-
-	// Step 2: Delete HotPlex session marker (use providerSessionID, not sessionID)
-	// Marker files are named after providerSessionID
-	markerDeleted := a.deleteHotPlexMarker(providerSessionID)
-
-	// Step 3: Terminate the session process
-	if err := a.eng.StopSession(sessionID, "user_requested_reset"); err != nil {
-		a.Logger().Error("Failed to terminate session",
-			"session_id", sessionID, "error", err)
-		return a.sendCommandResponse(cmd.ResponseURL, cmd.ChannelID,
-			fmt.Sprintf("⚠️ Session termination failed: %v", err))
-	}
-
-	a.Logger().Info("Physical cleanup for /reset completed",
-		"session_id", sessionID,
-		"claude_session_deleted", deletedCount > 0,
-		"marker_deleted", markerDeleted)
-
-	return a.sendCommandResponse(cmd.ResponseURL, cmd.ChannelID,
-		"✅ Context reset. Ready for fresh start!")
-}
-
-// deleteClaudeCodeSessionFile renames (not deletes) the project session file for a given session.
-// This preserves audit trail by adding .deleted suffix.
-// The workspace directory name is derived from the working directory path.
-func (a *Adapter) deleteClaudeCodeSessionFile(providerSessionID string) int {
-	projectsDir := filepath.Join(os.Getenv("HOME"), ".claude", "projects")
-
-	// Use current working directory as workspace key
-	// Format: /Users/huangzhonghui/HotPlex -> -Users-huangzhonghui-HotPlex
-	cwd, err := os.Getwd()
+	// Execute command via registry
+	result, err := a.cmdRegistry.Execute(context.Background(), req, nil)
 	if err != nil {
-		cwd = "/Users/huangzhonghui/HotPlex" // Default fallback
-	}
-	workspaceKey := strings.ReplaceAll(cwd, "/", "-")
-	workspaceDir := filepath.Join(projectsDir, workspaceKey)
-
-	if providerSessionID == "" {
-		a.Logger().Debug("No providerSessionID, skipping Claude Code file cleanup")
-		return 0
+		a.Logger().Error("Command execution failed", "command", cmd.Command, "error", err)
+		_ = a.sendCommandResponse(cmd.ResponseURL, cmd.ChannelID, "Command execution failed: "+err.Error())
+		return
 	}
 
-	sessionFile := filepath.Join(workspaceDir, providerSessionID+".jsonl")
-	deletedFile := sessionFile + ".deleted"
-
-	// Rename instead of delete to preserve audit trail
-	if err := os.Rename(sessionFile, deletedFile); err == nil {
-		a.Logger().Info("Renamed Claude Code session file",
-			"from", sessionFile,
-			"to", deletedFile)
-		return 1
+	// Send response
+	if result != nil && result.Message != "" {
+		_ = a.sendCommandResponse(cmd.ResponseURL, cmd.ChannelID, result.Message)
 	}
-	if os.IsNotExist(err) {
-		a.Logger().Debug("Claude Code session file not found (may not exist yet)",
-			"path", sessionFile)
-	} else {
-		a.Logger().Warn("Failed to rename Claude Code session file",
-			"path", sessionFile, "error", err)
-	}
-	return 0
 }
 
-// deleteHotPlexMarker deletes the HotPlex session marker file.
-func (a *Adapter) deleteHotPlexMarker(sessionID string) bool {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return false
-	}
-	markerPath := filepath.Join(homeDir, ".hotplex", "sessions", sessionID+".lock")
-	deletedPath := markerPath + ".deleted"
+// =============================================================================
+// Command Constants
+// =============================================================================
 
-	// Rename instead of delete to preserve audit trail
-	if err := os.Rename(markerPath, deletedPath); err == nil {
-		a.Logger().Info("Renamed HotPlex marker file",
-			"from", markerPath,
-			"to", deletedPath)
-		return true
-	}
-	if os.IsNotExist(err) {
-		a.Logger().Debug("HotPlex marker file not found (may not exist yet)",
-			"path", markerPath)
-		return true // Not existing is also "deleted"
-	}
-	a.Logger().Warn("Failed to rename HotPlex marker file",
-		"path", markerPath, "error", err)
-	return false
-}
-func (a *Adapter) handleUnknownCommand(cmd SlashCommand) {
-	a.Logger().Debug("Unknown slash command", "command", cmd.Command)
-	// Silently ignore unknown commands - Slack may send other commands
-}
+const (
+	// CommandReset represents the /reset command
+	CommandReset = "/reset"
+	// CommandDisconnect represents the /dc command
+	CommandDisconnect = "/dc"
+)
 
-// handleDisconnectCommand processes /dc command to disconnect from AI CLI
-// This terminates the CLI process but preserves conversation context
-func (a *Adapter) handleDisconnectCommand(cmd SlashCommand) error {
-	// Check if engine is set
-	if a.eng == nil {
-		a.Logger().Error("Engine is nil")
-		return a.sendEphemeralMessage(cmd.ResponseURL, "❌ Internal error: Engine not initialized")
-	}
-	// Find session by matching user_id and channel_id
-	// New key format is "platform:user_id:bot_user_id:channel_id", so we need to search
-	baseSession := a.FindSessionByUserAndChannel(cmd.UserID, cmd.ChannelID)
-	if baseSession == nil {
-		a.Logger().Error("No active session found for /dc",
-			"channel_id", cmd.ChannelID,
-			"user_id", cmd.UserID)
-		return a.sendEphemeralMessage(cmd.ResponseURL, "ℹ️ No active session found")
-	}
-
-	sessionID := baseSession.SessionID
-	a.Logger().Info("Found session for /dc",
-		"session_id", sessionID,
-		"channel_id", cmd.ChannelID,
-		"user_id", cmd.UserID)
-
-	// Get session from engine
-	sess, exists := a.eng.GetSession(sessionID)
-	if !exists {
-		a.Logger().Error("Session disappeared after lookup", "session_id", sessionID)
-		return a.sendEphemeralMessage(cmd.ResponseURL, "ℹ️ Session not found")
-	}
-
-	// Terminate the CLI process (but context is preserved in marker file)
-	// Next message will resume with same context
-	if err := a.eng.StopSession(sessionID, "user_requested_disconnect"); err != nil {
-		a.Logger().Error("Failed to disconnect session", "session_id", sessionID, "error", err)
-		return a.sendEphemeralMessage(cmd.ResponseURL,
-			fmt.Sprintf("❌ Failed to disconnect: %v", err))
-	}
-
-	a.Logger().Info("Disconnected from CLI process",
-		"session_id", sessionID,
-		"provider_session_id", sess.ProviderSessionID)
-
-	// Send success response
-	return a.sendEphemeralMessage(cmd.ResponseURL,
-		"🔌 Disconnected from CLI. Context preserved. Next message will resume.")
-}
-
-// SUPPORTED_COMMANDS lists all slash commands supported by the system.
+// =============================================================================
+// Supported Commands List
+// =============================================================================
 
 // SUPPORTED_COMMANDS lists all slash commands supported by the system.
 // Used for matching #<command> prefix in messages (thread support).
-var SUPPORTED_COMMANDS = []string{"/reset", "/dc"}
+var SUPPORTED_COMMANDS = []string{CommandReset, CommandDisconnect}
 
 // isSupportedCommand checks if a command (with / prefix) is in the supported commands list.
 func isSupportedCommand(cmd string) bool {
@@ -1216,7 +1291,48 @@ func convertHashPrefixToSlash(text string) (string, bool) {
 	return text, false
 }
 
-// preprocessMessageText handles #<command> to /<command> conversion and returns
+// processHashCommand executes a command that was converted from #command to /command
+// Returns true if a command was processed, false otherwise
+func (a *Adapter) processHashCommand(cmd string, userID, channelID string) bool {
+	// Check if it's a supported command
+	if !isSupportedCommand(cmd) {
+		return false
+	}
+
+	a.Logger().Info("Executing converted command", "command", cmd, "user_id", userID, "channel_id", channelID)
+
+	// Find session for command execution
+	baseSession := a.FindSessionByUserAndChannel(userID, channelID)
+	var sessionID string
+	if baseSession != nil {
+		sessionID = baseSession.SessionID
+	}
+
+	// Create command request
+	req := &command.Request{
+		Command:     cmd,
+		UserID:      userID,
+		ChannelID:   channelID,
+		SessionID:   sessionID,
+		ResponseURL: "",
+	}
+
+	// Execute command via registry (async)
+	panicx.SafeGo(a.Logger(), func() {
+		result, err := a.cmdRegistry.Execute(context.Background(), req, nil)
+		if err != nil {
+			a.Logger().Error("Command execution failed", "command", cmd, "error", err)
+			return
+		}
+		// Send response if needed
+		if result != nil && result.Message != "" {
+			_ = a.sendCommandResponse("", channelID, result.Message)
+		}
+	})
+
+	return true
+}
+
 // the processed text along with metadata additions for the message.
 // Returns the processed text and a metadata map.
 func preprocessMessageText(originalText string) (string, map[string]any) {

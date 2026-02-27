@@ -4,7 +4,6 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -775,38 +774,6 @@ func TestHandleInteractive_ReadBodyError(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("Expected 400, got %d", w.Code)
 	}
-}
-
-// =============================================================================
-// handleSocketModeEvent Tests
-// =============================================================================
-
-// TestHandleSocketModeEvent_MessageEvent tests Socket Mode message event handling
-func TestHandleSocketModeEvent_MessageEvent(t *testing.T) {
-	adapter := createTestAdapter("")
-
-	// Create a message event - this tests that the handler doesn't panic
-	// Note: Without proper config, the message will be filtered, but we just
-	// verify the handler can process the event without crashing
-	eventData := `{
-		"type": "message",
-		"channel": "C123",
-		"channel_type": "dm",
-		"user": "U123",
-		"text": "hello world",
-		"ts": "1234567890.123456"
-	}`
-
-	// This should not panic
-	adapter.handleSocketModeEvent("message", json.RawMessage(eventData))
-}
-
-// TestHandleSocketModeEvent_InvalidJSON tests handling of malformed JSON
-func TestHandleSocketModeEvent_InvalidJSON(t *testing.T) {
-	adapter := createTestAdapter("")
-
-	// Invalid JSON should not panic
-	adapter.handleSocketModeEvent("message", json.RawMessage(`{invalid`))
 }
 
 // =============================================================================

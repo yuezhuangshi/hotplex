@@ -30,7 +30,7 @@ func NewResetExecutor(eng *engine.Engine, workDir string) *ResetExecutor {
 
 // Command returns the command name
 func (e *ResetExecutor) Command() string {
-	return "/reset"
+	return CommandReset
 }
 
 // Description returns the command description

@@ -6,6 +6,17 @@ import (
 	"github.com/hrygo/hotplex/event"
 )
 
+// =============================================================================
+// Command Constants
+// =============================================================================
+
+const (
+	// CommandReset represents the /reset command
+	CommandReset = "/reset"
+	// CommandDisconnect represents the /dc command
+	CommandDisconnect = "/dc"
+)
+
 // Executor defines the interface for slash command executors.
 // Each command (/reset, /dc, etc.) implements this interface.
 type Executor interface {
