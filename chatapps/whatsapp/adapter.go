@@ -235,3 +235,6 @@ func (a *Adapter) handleMessage(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 }
+
+// Compile-time interface compliance check
+var _ base.ChatAdapter = (*Adapter)(nil)

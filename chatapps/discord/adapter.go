@@ -268,3 +268,6 @@ func (a *Adapter) SendToChannel(ctx context.Context, channelID, content string) 
 
 	return nil
 }
+
+// Compile-time interface compliance check
+var _ base.ChatAdapter = (*Adapter)(nil)

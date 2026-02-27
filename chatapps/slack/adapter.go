@@ -1490,3 +1490,6 @@ func (a *Adapter) PostEphemeralSDK(ctx context.Context, channelID, userID, text 
 	a.Logger().Debug("Ephemeral message sent via SDK", "channel", channelID, "user", userID)
 	return nil
 }
+
+// Compile-time interface compliance check
+var _ base.ChatAdapter = (*Adapter)(nil)

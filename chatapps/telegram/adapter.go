@@ -8,74 +8,25 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/hrygo/hotplex/chatapps/base"
+	"golang.org/x/time/rate"
 )
 
 type Adapter struct {
 	*base.Adapter
 	config      Config
-	rateLimiter *RateLimiter
+	rateLimiter *rate.Limiter
 	webhookPath string
 	sender      *base.SenderWithMutex
 	webhook     *base.WebhookRunner
 }
 
-type RateLimiter struct {
-	mu         sync.Mutex
-	tokens     float64
-	maxTokens  float64
-	refillRate float64
-	lastRefill time.Time
-}
-
-func NewRateLimiter(maxTokens, refillRate float64) *RateLimiter {
-	return &RateLimiter{
-		tokens:     maxTokens,
-		maxTokens:  maxTokens,
-		refillRate: refillRate,
-		lastRefill: time.Now(),
-	}
-}
-
-func (r *RateLimiter) Allow() bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	now := time.Now()
-	elapsed := now.Sub(r.lastRefill).Seconds()
-	r.tokens += elapsed * r.refillRate
-	if r.tokens > r.maxTokens {
-		r.tokens = r.maxTokens
-	}
-	r.lastRefill = now
-
-	if r.tokens >= 1 {
-		r.tokens--
-		return true
-	}
-	return false
-}
-
-func (r *RateLimiter) Wait(ctx context.Context) error {
-	for {
-		if r.Allow() {
-			return nil
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(100 * time.Millisecond):
-		}
-	}
-}
-
 func NewAdapter(config Config, logger *slog.Logger, opts ...base.AdapterOption) *Adapter {
 	a := &Adapter{
 		config:      config,
-		rateLimiter: NewRateLimiter(30, 10),
+		rateLimiter: rate.NewLimiter(rate.Limit(10), 30), // 10 rps, burst 30
 		webhookPath: "/webhook",
 		sender:      base.NewSenderWithMutex(),
 		webhook:     base.NewWebhookRunner(logger),
@@ -387,3 +338,6 @@ func (a *Adapter) Logger() *slog.Logger {
 func (a *Adapter) SetLogger(logger *slog.Logger) {
 	a.Adapter.SetLogger(logger)
 }
+
+// Compile-time interface compliance check
+var _ base.ChatAdapter = (*Adapter)(nil)

@@ -330,3 +330,6 @@ func (a *Adapter) extractWebhookURL(sessionID string, msg *base.ChatMessage) str
 	}
 	return ""
 }
+
+// Compile-time interface compliance check
+var _ base.ChatAdapter = (*Adapter)(nil)
