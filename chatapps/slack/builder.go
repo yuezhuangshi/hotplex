@@ -145,8 +145,8 @@ func (b *MessageBuilder) buildSingleToolUseBlock(msg *base.ChatMessage) []slack.
 
 	// Truncate input for summary display
 	inputSummary := input
-	if len(inputSummary) > 50 {
-		inputSummary = inputSummary[:50] + "..."
+	if len(inputSummary) > 64 {
+		inputSummary = inputSummary[:64] + "..."
 	}
 
 	// Full-width single line: emoji + tool name + parameter summary
