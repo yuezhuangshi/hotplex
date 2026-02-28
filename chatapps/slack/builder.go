@@ -143,18 +143,20 @@ func (b *MessageBuilder) buildSingleToolUseBlock(msg *base.ChatMessage) []slack.
 		}
 	}
 
-	// Truncate input to 12 characters per spec for summary
+	// Truncate input for summary display
 	inputSummary := input
-	if len(inputSummary) > 12 {
-		inputSummary = inputSummary[:12] + "..."
+	if len(inputSummary) > 50 {
+		inputSummary = inputSummary[:50] + "..."
 	}
 
-	// Per spec: fields dual-column layout with emoji + tool name + parameter summary
-	// Format: :computer: *Bash* | ls -la...
-	toolNameText := slack.NewTextBlockObject("mrkdwn", toolEmoji+" *"+toolName+"*", false, false)
-	inputText := slack.NewTextBlockObject("mrkdwn", "```"+inputSummary+"```", false, false)
-
-	section := slack.NewSectionBlock(nil, []*slack.TextBlockObject{toolNameText, inputText}, nil)
+	// Full-width single line: emoji + tool name + parameter summary
+	// Format: :computer: *Bash* `ls -la...`
+	line := toolEmoji + " *" + toolName + "*"
+	if inputSummary != "" {
+		line += "  `" + inputSummary + "`"
+	}
+	text := slack.NewTextBlockObject("mrkdwn", line, false, false)
+	section := slack.NewSectionBlock(text, nil, nil)
 
 	return []slack.Block{section}
 }

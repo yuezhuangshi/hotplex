@@ -65,8 +65,8 @@ func TestSessionStats_RecordToolResult_NoStart(t *testing.T) {
 	if toolName != "" {
 		t.Errorf("RecordToolResult() toolName = %q, want empty string", toolName)
 	}
-	if stats.ToolCallCount != 1 {
-		t.Errorf("ToolCallCount = %d, want 1", stats.ToolCallCount)
+	if stats.ToolCallCount != 0 {
+		t.Errorf("ToolCallCount = %d, want 0 (count is incremented in RecordToolUse, not RecordToolResult)", stats.ToolCallCount)
 	}
 }
 

@@ -398,6 +398,11 @@ func (r *Engine) handleStreamRawLine(line string, cfg *types.Config, stats *Sess
 		return nil
 	}
 
+	// Diagnostic: log raw CLI JSON types for protocol analysis
+	for _, p := range pevtSlice {
+		r.logger.Debug("[RUNNER] parsed raw line", "raw_type", p.RawType, "normalized_type", p.Type, "tool_name", p.ToolName)
+	}
+
 	for _, pevt := range pevtSlice {
 		// Detect if this event indicates the turn is over
 		if r.provider.DetectTurnEnd(pevt) {
@@ -510,6 +515,12 @@ func (r *Engine) dispatchNormalizedCallback(pevt *provider.ProviderEvent, callba
 	if stats == nil {
 		return nil
 	}
+
+	// Diagnostic: log ALL events entering dispatch
+	r.logger.Debug("[RUNNER] dispatchNormalizedCallback",
+		"event_type", pevt.Type,
+		"content_len", len(pevt.Content),
+		"tool_name", pevt.ToolName)
 
 	totalDur := time.Since(stats.StartTime).Milliseconds()
 

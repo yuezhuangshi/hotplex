@@ -77,6 +77,7 @@ func (s *SessionStats) RecordToolUse(toolName, toolID string) {
 	s.currentToolStart = time.Now()
 	s.currentToolName = toolName
 	s.currentToolID = toolID
+	s.ToolCallCount++ // Count here — tool_result may not arrive from all Providers
 	// Ensure ToolsUsed map is initialized (concurrency safety)
 	if s.ToolsUsed == nil {
 		s.ToolsUsed = make(map[string]bool)
@@ -99,7 +100,7 @@ func (s *SessionStats) RecordToolResult(toolID string) (durationMs int64, toolNa
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.ToolCallCount++
+	// ToolCallCount is incremented in RecordToolUse (not here)
 
 	// Try to get tool name from toolID map first (most reliable)
 	// This handles the case where Claude CLI sends tool_result without tool_name
