@@ -13,8 +13,9 @@ import (
 
 // ResetExecutor implements the /reset command
 type ResetExecutor struct {
-	engine  *engine.Engine
-	workDir string
+	engine     *engine.Engine
+	workDir    string
+	adapters   interface{} // Will be cast to *chatapps.AdapterManager
 }
 
 // Verify ResetExecutor implements Executor at compile time
@@ -26,6 +27,11 @@ func NewResetExecutor(eng *engine.Engine, workDir string) *ResetExecutor {
 		engine:  eng,
 		workDir: workDir,
 	}
+}
+
+// SetAdapterManager sets the adapter manager for session cleanup
+func (e *ResetExecutor) SetAdapterManager(adapters interface{}) {
+	e.adapters = adapters
 }
 
 // Command returns the command name
@@ -95,6 +101,9 @@ func (e *ResetExecutor) Execute(ctx context.Context, req *Request, callback even
 	_ = emitter.Running(3)
 	_ = emitter.Emit("Resetting Context")
 
+	// Note: Adapter cleanup is handled by engine.StopSession callback
+	// Adapters will clean up their own state (aggregator buffers, etc.)
+
 	if err := e.engine.StopSession(sessionID, "user_requested_reset"); err != nil {
 		_ = emitter.Error(3, fmt.Sprintf("Failed: %v", err))
 		_ = emitter.Emit("Reset Failed")
@@ -132,7 +141,11 @@ func (e *ResetExecutor) deleteClaudeCodeSessionFile(providerSessionID string) in
 	// Derive workspace directory from workDir
 	cwd := e.workDir
 	if cwd == "" {
-		cwd, _ = os.Getwd()
+		var err error
+		cwd, err = os.Getwd()
+		if err != nil {
+			cwd = os.TempDir() // Fallback to temp directory
+		}
 	}
 	workspaceKey := strings.ReplaceAll(cwd, "/", "-")
 	workspaceDir := filepath.Join(projectsDir, workspaceKey)

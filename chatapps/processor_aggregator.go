@@ -298,9 +298,15 @@ func (p *MessageAggregatorProcessor) bufferMessage(_ context.Context, msg *base.
 		}
 
 		// Set timer to flush buffer after window
-		buf.timer = time.AfterFunc(p.window, func() {
-			p.flushBufferByTimer(p.ctx, sessionKey)
-		})
+		// Check ctx status to avoid timer leak if context is already cancelled
+		if p.ctx.Err() == nil {
+			buf.timer = time.AfterFunc(p.window, func() {
+				// Check ctx again before flushing to avoid work on cancelled context
+				if p.ctx.Err() == nil {
+					p.flushBufferByTimer(p.ctx, sessionKey)
+				}
+			})
+		}
 
 		p.buffers[sessionKey] = buf
 	}
@@ -677,3 +683,6 @@ func (p *MessageAggregatorProcessor) Stop() {
 	p.buffers = make(map[string]*messageBuffer)
 	p.logger.Info("Message aggregator stopped")
 }
+
+// Verify MessageAggregatorProcessor implements MessageProcessor at compile time
+var _ MessageProcessor = (*MessageAggregatorProcessor)(nil)
