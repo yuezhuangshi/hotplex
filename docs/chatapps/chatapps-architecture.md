@@ -81,12 +81,13 @@ type ChatMessage struct {
 | **8. Chunk**       | 长文本切片     | 突破平台单条消息长度限制（如 Slack 4000 字符），自动分段发送。           |
 
 ### 3.2 区域化交互 (Zone-based Interaction)
-下行消息依据 `ZoneIndex` 被划分为四个核心交互区：
+下行消息依据 `ZoneIndex` 被划分为五个横跨会话生命周期的控制区：
 
-- **Zone 0: Thinking (思考区)** - 显示 Agent 的内部推导、计划生成。
-- **Zone 1: Action (行动区)** - 显示工具调用过程、命令执行进度、权限申请。
-- **Zone 2: Output (展示区)** - AI 最终回答、用户提问确认、错误告警。
-- **Zone 3: Summary (总结区)** - Turn 结束后的消耗统计（Tokens/Time/Cost）。
+- **Zone 0: Initialization (初始化区)** - 占据首帧提示 `session_start`, `engine_starting`，会在最终结果送达后被自动销毁。
+- **Zone 1: Thinking (思维修炼区)** - 游牧态块，展示 Agent 内部推演 `thinking`，仅保留最新一条并在进入 Output 时销毁。
+- **Zone 2: Action (行动交互区)** - 半持久呈现 `tool_use`, `permission_request`, `danger_block` 等工作流活动，支持窗口滑动。
+- **Zone 3: Output (最终展示区)** - 永久保留 `answer`, `ask_user_question`, `error` 的核心结论。
+- **Zone 4: Summary (数据结算区)** - 作为 Turn 收尾标志的 `session_stats` 卡片，触发生态组件清理和时序复位。
 
 ---
 
@@ -119,29 +120,29 @@ type ChatMessage struct {
 
 HotPlex 定义了 21 种标准事件类型：
 
-| 事件类型                | 所属 Zone | 状态 | 渲染建议                            |
-| :---------------------- | :-------- | :--- | :---------------------------------- |
-| `thinking`              | Thinking  | ✅    | Context Block + Loading Animation   |
-| `plan_mode`             | Thinking  | ✅    | Blockquotes / Collapsible           |
-| `tool_use`              | Action    | ✅    | Code Snippet + Icon (e.g. 🛠️)        |
-| `tool_result`           | Action    | ✅    | Log Container (Auto-scroll)         |
-| `answer`                | Output    | ✅    | Main Message Body (Streaming)       |
-| `error`                 | Output    | ✅    | Warning Alert Block                 |
-| `danger_block`          | Action    | ✅    | Interactive Modal / Buttons         |
-| `session_stats`         | Summary   | ✅    | Metadata Section (Small Text)       |
-| `permission_request`    | Action    | ✅    | Header + Approve/Reject Buttons     |
-| `exit_plan_mode`        | Output    | ✅    | Plan Summary + Confirmation Actions |
-| `ask_user_question`     | Output    | ✅    | Highlighted Question + Input Field  |
-| `command_progress`      | Action    | ✅    | ProgressBar / Dynamic Context Block |
-| `command_complete`      | Action    | ✅    | Success Icon + Execution Summary    |
-| `session_start`         | Action    | ✅    | Welcome Banner / Cold Start Info    |
-| `engine_starting`       | Action    | ✅    | Initialization Status Context       |
-| `user_message_received` | Action    | ✅    | Acknowledgment Receipt              |
-| `system`                | Action    | ✅    | System Event Notification (Context) |
-| `user`                  | Action    | ✅    | User Message Reflection (Mirror)    |
-| `step_start`            | Action    | ✅    | Milestone Header (OpenCode)         |
-| `step_finish`           | Action    | ✅    | Completion Milestone (OpenCode)     |
-| `raw`                   | Output    | ✅    | Unformatted Raw Output Fallback     |
+| 事件类型                | 所属 Zone          | 渲染建议                            |
+| :---------------------- | :----------------- | :---------------------------------- |
+| `session_start`         | Initialization (0) | Welcome Banner / Cold Start Info    |
+| `engine_starting`       | Initialization (0) | Initialization Status Context       |
+| `thinking`              | Thinking (1)       | Context Block + Loading Animation   |
+| `plan_mode`             | Thinking (1)       | Blockquotes / Collapsible           |
+| `tool_use`              | Action (2)         | Code Snippet + Icon (e.g. 🛠️)        |
+| `tool_result`           | Action (2)         | Log Container (Auto-scroll)         |
+| `permission_request`    | Action (2)         | Header + Approve/Reject Buttons     |
+| `danger_block`          | Action (2)         | Interactive Modal / Buttons         |
+| `command_progress`      | Action (2)         | ProgressBar / Dynamic Context Block |
+| `command_complete`      | Action (2)         | Success Icon + Execution Summary    |
+| `step_start`            | Action (2)         | Milestone Header (OpenCode)         |
+| `step_finish`           | Action (2)         | Completion Milestone (OpenCode)     |
+| `answer`                | Output (3)         | Main Message Body (Streaming)       |
+| `ask_user_question`     | Output (3)         | Highlighted Question + Input Field  |
+| `exit_plan_mode`        | Output (3)         | Plan Summary + Confirmation Actions |
+| `error`                 | Output (3)         | Warning Alert Block                 |
+| `session_stats`         | Summary (4)        | Metadata Section (Small Text)       |
+| `user_message_received` | (Filtered)         | Acknowledgment Receipt (Noise)      |
+| `system`                | (Filtered)         | System Event Notification (Noise)   |
+| `user`                  | (Filtered)         | User Message Reflection (Noise)     |
+| `raw`                   | (Filtered)         | Unformatted Raw Output Fallback     |
 
 ---
 
