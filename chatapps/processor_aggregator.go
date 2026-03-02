@@ -49,10 +49,10 @@ var defaultEventConfig = map[string]EventConfig{
 	"user_message_received": {Aggregate: false, Immediate: true},   // Show immediately - acknowledgment
 
 	// Core events
-	"thinking":    {Aggregate: false, Immediate: true},                  // Show immediately, 500ms dedup window in handler
-	"tool_use":    {Aggregate: true, SameTypeOnly: true},                // Aggregate rapid invocations (e.g. multi-file reads)
-	"tool_result": {Aggregate: true, SameTypeOnly: true},                // Aggregate rapid results (e.g. LS outputs)
-	"answer":      {Aggregate: true, UseUpdate: true, Immediate: false}, // Stream with chat.update (1/sec)
+	"thinking":    {Aggregate: false, Immediate: true},   // Show immediately, 500ms dedup window in handler
+	"tool_use":    {Aggregate: true, SameTypeOnly: true}, // Aggregate rapid invocations (e.g. multi-file reads)
+	"tool_result": {Aggregate: true, SameTypeOnly: true}, // Aggregate rapid results (e.g. LS outputs)
+	"answer":      {Aggregate: false, Immediate: true},   // Handled by StreamState.updateThrottled
 
 	// Status events
 	"error":         {Aggregate: false, Immediate: true}, // Show immediately - errors need instant feedback
@@ -64,7 +64,7 @@ var defaultEventConfig = map[string]EventConfig{
 	"danger_block":       {Aggregate: false, Immediate: true}, // Need immediate user decision
 
 	// Plan mode events
-	"plan_mode":      {Aggregate: true, UseUpdate: true},  // Stream with chat.update
+	"plan_mode":      {Aggregate: false, Immediate: true}, // Handled by StreamState.updateThrottled
 	"exit_plan_mode": {Aggregate: false, Immediate: true}, // Need immediate user decision
 
 	// Question events
@@ -75,7 +75,7 @@ var defaultEventConfig = map[string]EventConfig{
 	"step_finish": {Aggregate: true, SameTypeOnly: true}, // Can aggregate with next step
 
 	// Command events
-	"command_progress": {Aggregate: true, UseUpdate: true},  // Stream with chat.update
+	"command_progress": {Aggregate: false, Immediate: true}, // Handled by handler/adapter throttling
 	"command_complete": {Aggregate: false, Immediate: true}, // Show at end
 
 	// Other
@@ -457,7 +457,13 @@ func (p *MessageAggregatorProcessor) flushBufferByTimer(ctx context.Context, ses
 
 // flushBuffer flushes buffer for final message
 func (p *MessageAggregatorProcessor) flushBuffer(finalMsg *base.ChatMessage) (*base.ChatMessage, error) {
+	eventType, _ := finalMsg.Metadata["event_type"].(string)
+	eventConfig := p.getEventConfig(eventType)
+
 	sessionKey := finalMsg.Platform + ":" + finalMsg.SessionID
+	if eventConfig.SameTypeOnly {
+		sessionKey = sessionKey + ":" + eventType
+	}
 
 	p.mu.Lock()
 	buf, exists := p.buffers[sessionKey]
@@ -472,7 +478,7 @@ func (p *MessageAggregatorProcessor) flushBuffer(finalMsg *base.ChatMessage) (*b
 	}
 
 	// Extract platform and event_type before unlocking
-	var platform, eventType string
+	var platform string
 	if len(buf.messages) > 0 && buf.messages[0] != nil {
 		platform = buf.messages[0].Platform
 		if et, ok := buf.messages[0].Metadata["event_type"].(string); ok {

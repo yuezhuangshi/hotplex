@@ -23,6 +23,7 @@ type Config struct {
 type Session struct {
 	SessionID  string
 	UserID     string
+	ChannelID  string
 	Platform   string
 	LastActive time.Time
 }
@@ -307,14 +308,15 @@ func (a *Adapter) GetSession(key string) (*Session, bool) {
 //   - userID: the user's ID on the platform
 //   - botUserID: the bot's user ID (for multi-bot scenarios, empty for single bot)
 //   - channelID: the channel/room ID (empty for DM)
+//   - threadID: the thread/topic ID (empty if not applicable)
 //
 // Returns the generated session ID (deterministic based on inputs)
-func (a *Adapter) GetOrCreateSession(userID, botUserID, channelID string) string {
+func (a *Adapter) GetOrCreateSession(userID, botUserID, channelID, threadID string) string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	// Generate deterministic key from all components
-	key := fmt.Sprintf("%s:%s:%s:%s", a.platformName, userID, botUserID, channelID)
+	key := fmt.Sprintf("%s:%s:%s:%s:%s", a.platformName, userID, botUserID, channelID, threadID)
 
 	if session, ok := a.sessions[key]; ok {
 		session.LastActive = time.Now()
@@ -322,11 +324,12 @@ func (a *Adapter) GetOrCreateSession(userID, botUserID, channelID string) string
 	}
 
 	// Generate deterministic session ID using UUID5
-	sessionID := a.sessionIDGenerator.Generate(a.platformName, userID, botUserID, channelID)
+	sessionID := a.sessionIDGenerator.Generate(a.platformName, userID, botUserID, channelID, threadID)
 
 	session := &Session{
 		SessionID:  sessionID,
 		UserID:     userID,
+		ChannelID:  channelID,
 		Platform:   a.platformName,
 		LastActive: time.Now(),
 	}
@@ -342,7 +345,8 @@ func (a *Adapter) GetOrCreateSession(userID, botUserID, channelID string) string
 		"session", sessionID,
 		"user", userID,
 		"bot", botUserID,
-		"channel", channelID)
+		"channel", channelID,
+		"thread", threadID)
 	return sessionID
 }
 
@@ -364,6 +368,15 @@ func (a *Adapter) cleanupSessions() {
 			for key, session := range a.sessions {
 				if now.Sub(session.LastActive) > a.sessionTimeout {
 					delete(a.sessions, key)
+
+					// Clean up secondary index
+					userChannelKey := session.UserID + ":" + session.ChannelID
+					a.indexMu.Lock()
+					if s, ok := a.sessionsByUserChannel[userChannelKey]; ok && s.SessionID == session.SessionID {
+						delete(a.sessionsByUserChannel, userChannelKey)
+					}
+					a.indexMu.Unlock()
+
 					a.logger.Debug("Session removed", "session", session.SessionID, "inactive", now.Sub(session.LastActive))
 				}
 			}

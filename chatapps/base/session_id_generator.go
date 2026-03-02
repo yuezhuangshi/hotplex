@@ -13,7 +13,8 @@ type SessionIDGenerator interface {
 	// - userID: the user's ID on the platform
 	// - botUserID: the bot's user ID (for multi-bot scenarios)
 	// - channelID: the channel/room ID (empty for DM)
-	Generate(platform, userID, botUserID, channelID string) string
+	// - threadID: the thread/topic ID (empty if not applicable)
+	Generate(platform, userID, botUserID, channelID, threadID string) string
 }
 
 // UUID5Generator generates session IDs using UUID5 (SHA1 hash)
@@ -30,10 +31,10 @@ func NewUUID5Generator(namespace string) *UUID5Generator {
 }
 
 // Generate creates a deterministic session ID
-// Format: UUID5(namespace + ":session:" + platform + ":" + userID + ":" + botUserID + ":" + channelID)
-func (g *UUID5Generator) Generate(platform, userID, botUserID, channelID string) string {
+// Format: UUID5(namespace + ":session:" + platform + ":" + userID + ":" + botUserID + ":" + channelID + ":" + threadID)
+func (g *UUID5Generator) Generate(platform, userID, botUserID, channelID, threadID string) string {
 	// Build the key from all components
-	key := fmt.Sprintf("%s:%s:%s:%s", platform, userID, botUserID, channelID)
+	key := fmt.Sprintf("%s:%s:%s:%s:%s", platform, userID, botUserID, channelID, threadID)
 
 	// Create unique string for hashing
 	input := g.namespace + ":session:" + key
@@ -52,9 +53,9 @@ func NewSimpleKeyGenerator() *SimpleKeyGenerator {
 }
 
 // Generate creates a session ID by concatenating all components
-// Format: platform:userID:botUserID:channelID
-func (g *SimpleKeyGenerator) Generate(platform, userID, botUserID, channelID string) string {
-	return fmt.Sprintf("%s:%s:%s:%s", platform, userID, botUserID, channelID)
+// Format: platform:userID:botUserID:channelID:threadID
+func (g *SimpleKeyGenerator) Generate(platform, userID, botUserID, channelID, threadID string) string {
+	return fmt.Sprintf("%s:%s:%s:%s:%s", platform, userID, botUserID, channelID, threadID)
 }
 
 // WithSessionIDGenerator sets the session ID generator

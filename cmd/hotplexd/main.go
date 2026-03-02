@@ -13,6 +13,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/hrygo/hotplex"
+	"github.com/hrygo/hotplex/brain"
 	"github.com/hrygo/hotplex/chatapps"
 	"github.com/hrygo/hotplex/internal/server"
 	"github.com/hrygo/hotplex/provider"
@@ -69,8 +70,12 @@ func main() {
 	}
 
 	logger := slog.New(handler)
-
 	logger.Info("Starting HotPlex Proxy Server...", "log_level", logLevel)
+
+	// 1.1 Initialize Native Brain (System 1)
+	if err := brain.Init(logger); err != nil {
+		logger.Warn("Native Brain initialization error (fail-open)", "error", err)
+	}
 
 	// 2. Initialize HotPlex Core Engine
 	idleTimeout := 30 * time.Minute

@@ -58,7 +58,6 @@ func (e *ResetExecutor) Execute(ctx context.Context, req *Request, callback even
 
 	// Step 1: Find session (10%)
 	_ = emitter.Running(0)
-	_ = emitter.Emit("Resetting Context")
 
 	sessionID := req.SessionID
 	var providerSessionID string
@@ -75,19 +74,15 @@ func (e *ResetExecutor) Execute(ctx context.Context, req *Request, callback even
 	providerSessionID = sess.ProviderSessionID
 
 	_ = emitter.Success(0, "Session located")
-	_ = emitter.Emit("Resetting Context")
 
 	// Step 2: Delete Claude Code session file (40%)
 	_ = emitter.Running(1)
-	_ = emitter.Emit("Resetting Context")
 
 	deletedCount := e.deleteClaudeCodeSessionFile(providerSessionID)
 	_ = emitter.Success(1, fmt.Sprintf("Deleted %d file(s)", deletedCount))
-	_ = emitter.Emit("Resetting Context")
 
 	// Step 3: Delete HotPlex marker (60%)
 	_ = emitter.Running(2)
-	_ = emitter.Emit("Resetting Context")
 
 	markerDeleted := e.deleteHotPlexMarker(providerSessionID)
 	if markerDeleted {
@@ -95,11 +90,9 @@ func (e *ResetExecutor) Execute(ctx context.Context, req *Request, callback even
 	} else {
 		_ = emitter.Success(2, "Marker cleanup done")
 	}
-	_ = emitter.Emit("Resetting Context")
 
 	// Step 4: Terminate session (80%)
 	_ = emitter.Running(3)
-	_ = emitter.Emit("Resetting Context")
 
 	// Note: Adapter cleanup is handled by engine.StopSession callback
 	// Adapters will clean up their own state (aggregator buffers, etc.)

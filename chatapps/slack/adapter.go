@@ -222,8 +222,14 @@ func (a *Adapter) defaultSender(ctx context.Context, sessionID string, msg *base
 
 			// If we have message_ts, update existing message instead of creating new one
 			if messageTS != "" {
-				return a.UpdateMessageSDK(ctx, channelID, messageTS, blocks, fallbackText)
+				err := a.UpdateMessageSDK(ctx, channelID, messageTS, blocks, fallbackText)
+				if err == nil {
+					return nil
+				}
+				// If message was deleted by user or another error occurred, fallback to posting a new one
+				a.Logger().Warn("Failed to update message, falling back to new message", "error", err, "ts", messageTS)
 			}
+
 			// Otherwise send new message and store ts in metadata
 			ts, err := a.sendBlocksSDK(ctx, channelID, blocks, threadTS, fallbackText)
 			if err != nil {
@@ -336,7 +342,7 @@ func (a *Adapter) sendEphemeralMessage(responseURL, text string) error {
 // or falling back to sending directly to the channel.
 // This is used when commands can be triggered from both slash commands (with response_url)
 // and thread messages (without response_url).
-func (a *Adapter) sendCommandResponse(responseURL, channelID, text string) error {
+func (a *Adapter) sendCommandResponse(responseURL, channelID, threadTS, text string) error {
 	// If response_url is available, use it for ephemeral message
 	if responseURL != "" {
 		return a.sendEphemeralMessage(responseURL, text)
@@ -350,7 +356,7 @@ func (a *Adapter) sendCommandResponse(responseURL, channelID, text string) error
 	a.Logger().Debug("No response_url, sending to channel directly", "channel_id", channelID)
 	// Note: Using context.Background() is acceptable here as this is a fallback for slash command responses
 	// which are fire-and-forget and don't need to be tied to the original request context
-	return a.SendToChannel(context.Background(), channelID, text, "")
+	return a.SendToChannel(context.Background(), channelID, text, threadTS)
 }
 
 // extractChannelID extracts channel_id from session or message metadata
@@ -499,6 +505,11 @@ func (a *Adapter) handleEventCallback(ctx context.Context, eventData json.RawMes
 		}
 	}
 
+	threadID := msgEvent.ThreadTS
+	if threadID == "" {
+		threadID = msgEvent.TS
+	}
+
 	// Convert #<command> prefix to /<command> for thread support
 	// Slack threads don't support slash commands, so we allow #reset, #dc, etc.
 	processedText, conversionMetadata := preprocessMessageText(msgEvent.Text)
@@ -506,12 +517,12 @@ func (a *Adapter) handleEventCallback(ctx context.Context, eventData json.RawMes
 		a.Logger().Debug("Converted # prefix to / prefix", "original", msgEvent.Text, "converted", processedText)
 
 		// Check if converted command should be executed immediately
-		if a.processHashCommand(processedText, msgEvent.User, msgEvent.Channel) {
+		if a.processHashCommand(processedText, msgEvent.User, msgEvent.Channel, threadID) {
 			return
 		}
 	}
 
-	sessionID := a.GetOrCreateSession(msgEvent.User, msgEvent.BotUserID, msgEvent.Channel)
+	sessionID := a.GetOrCreateSession(msgEvent.User, msgEvent.BotUserID, msgEvent.Channel, threadID)
 
 	msg := &base.ChatMessage{
 		Platform:  "slack",
@@ -677,7 +688,11 @@ func (a *Adapter) handleAppMentionEvent(ev *slackevents.AppMentionEvent) {
 	}
 
 	// Generate session and process message
-	sessionID := a.GetOrCreateSession(ev.User, a.config.BotUserID, ev.Channel)
+	threadID := ev.ThreadTimeStamp
+	if threadID == "" {
+		threadID = ev.TimeStamp
+	}
+	sessionID := a.GetOrCreateSession(ev.User, a.config.BotUserID, ev.Channel, threadID)
 	userText := a.stripBotMention(ev.Text)
 
 	msg := &base.ChatMessage{
@@ -726,6 +741,11 @@ func (a *Adapter) handleSocketModeMessageEvent(ev *slackevents.MessageEvent) {
 		return
 	}
 
+	threadID := ev.ThreadTimeStamp
+	if threadID == "" {
+		threadID = ev.TimeStamp
+	}
+
 	// Convert #<command> prefix to /<command> for thread support
 	// Slack threads don't support slash commands, so we allow #reset, #dc, etc.
 	processedText, conversionMetadata := preprocessMessageText(ev.Text)
@@ -734,12 +754,12 @@ func (a *Adapter) handleSocketModeMessageEvent(ev *slackevents.MessageEvent) {
 			"original", ev.Text, "converted", processedText)
 
 		// Check if converted command should be executed immediately
-		if a.processHashCommand(processedText, ev.User, ev.Channel) {
+		if a.processHashCommand(processedText, ev.User, ev.Channel, threadID) {
 			return
 		}
 	}
 
-	sessionID := a.GetOrCreateSession(ev.User, a.config.BotUserID, ev.Channel)
+	sessionID := a.GetOrCreateSession(ev.User, a.config.BotUserID, ev.Channel, threadID)
 	userText := processedText
 
 	msg := &base.ChatMessage{
@@ -811,6 +831,7 @@ func (a *Adapter) handleSocketModeSlashCommand(evt socketmode.Event) {
 		Text:        cmd.Text,
 		UserID:      cmd.UserID,
 		ChannelID:   cmd.ChannelID,
+		ThreadTS:    "", // Top-level slash commands don't have thread_ts usually
 		SessionID:   sessionID,
 		ResponseURL: cmd.ResponseURL,
 	}
@@ -818,7 +839,7 @@ func (a *Adapter) handleSocketModeSlashCommand(evt socketmode.Event) {
 	// Create callback for progress events
 	var progressTS string
 	callback := func(eventType string, data any) error {
-		return a.handleCommandProgress(cmd.ChannelID, &progressTS, eventType, data)
+		return a.handleCommandProgress(cmd.ChannelID, "", &progressTS, eventType, data)
 	}
 
 	// Execute command via registry
@@ -828,7 +849,7 @@ func (a *Adapter) handleSocketModeSlashCommand(evt socketmode.Event) {
 	if err != nil {
 		a.Logger().Error("Command execution failed", "command", cmd.Command, "error", err)
 	} else if result != nil && result.Message != "" {
-		_ = a.sendCommandResponse(cmd.ResponseURL, cmd.ChannelID, result.Message)
+		_ = a.sendCommandResponse(cmd.ResponseURL, cmd.ChannelID, "", result.Message)
 	}
 }
 
@@ -1402,6 +1423,7 @@ type SlashCommand struct {
 	Text        string
 	UserID      string
 	ChannelID   string
+	ThreadTS    string // For thread support (#command)
 	ResponseURL string
 }
 
@@ -1464,6 +1486,7 @@ func (a *Adapter) processSlashCommand(cmd SlashCommand) {
 		Text:        cmd.Text,
 		UserID:      cmd.UserID,
 		ChannelID:   cmd.ChannelID,
+		ThreadTS:    cmd.ThreadTS,
 		SessionID:   sessionID,
 		ResponseURL: cmd.ResponseURL,
 	}
@@ -1471,20 +1494,20 @@ func (a *Adapter) processSlashCommand(cmd SlashCommand) {
 	// Create callback for progress events
 	var progressTS string
 	callback := func(eventType string, data any) error {
-		return a.handleCommandProgress(cmd.ChannelID, &progressTS, eventType, data)
+		return a.handleCommandProgress(cmd.ChannelID, cmd.ThreadTS, &progressTS, eventType, data)
 	}
 
 	// Execute command via registry
 	result, err := a.cmdRegistry.Execute(context.Background(), req, callback)
 	if err != nil {
 		a.Logger().Error("Command execution failed", "command", cmd.Command, "error", err)
-		_ = a.sendCommandResponse(cmd.ResponseURL, cmd.ChannelID, "Command execution failed: "+err.Error())
+		_ = a.sendCommandResponse(cmd.ResponseURL, cmd.ChannelID, cmd.ThreadTS, "Command execution failed: "+err.Error())
 		return
 	}
 
 	// Send response
 	if result != nil && result.Message != "" {
-		_ = a.sendCommandResponse(cmd.ResponseURL, cmd.ChannelID, result.Message)
+		_ = a.sendCommandResponse(cmd.ResponseURL, cmd.ChannelID, cmd.ThreadTS, result.Message)
 	}
 }
 
@@ -1543,7 +1566,7 @@ func convertHashPrefixToSlash(text string) (string, bool) {
 
 // processHashCommand executes a command that was converted from #command to /command
 // Returns true if a command was processed, false otherwise
-func (a *Adapter) processHashCommand(cmd string, userID, channelID string) bool {
+func (a *Adapter) processHashCommand(cmd string, userID, channelID, threadTS string) bool {
 	// Check if it's a supported command
 	if !isSupportedCommand(cmd) {
 		return false
@@ -1563,6 +1586,7 @@ func (a *Adapter) processHashCommand(cmd string, userID, channelID string) bool 
 		Command:     cmd,
 		UserID:      userID,
 		ChannelID:   channelID,
+		ThreadTS:    threadTS,
 		SessionID:   sessionID,
 		ResponseURL: "",
 	}
@@ -1570,7 +1594,7 @@ func (a *Adapter) processHashCommand(cmd string, userID, channelID string) bool 
 	// Create callback for progress events
 	var progressTS string
 	callback := func(eventType string, data any) error {
-		return a.handleCommandProgress(channelID, &progressTS, eventType, data)
+		return a.handleCommandProgress(channelID, threadTS, &progressTS, eventType, data)
 	}
 
 	// Execute command via registry (async)
@@ -1582,7 +1606,7 @@ func (a *Adapter) processHashCommand(cmd string, userID, channelID string) bool 
 		}
 		// Send response if needed
 		if result != nil && result.Message != "" {
-			_ = a.sendCommandResponse("", channelID, result.Message)
+			_ = a.sendCommandResponse("", channelID, threadTS, result.Message)
 		}
 	})
 
@@ -1590,7 +1614,7 @@ func (a *Adapter) processHashCommand(cmd string, userID, channelID string) bool 
 }
 
 // handleCommandProgress handles progress events from command execution
-func (a *Adapter) handleCommandProgress(channelID string, progressTS *string, eventType string, data any) error {
+func (a *Adapter) handleCommandProgress(channelID, threadTS string, progressTS *string, eventType string, data any) error {
 	// Build progress message using MessageBuilder
 	msg := &base.ChatMessage{
 		Type:      base.MessageTypeCommandProgress,
@@ -1624,7 +1648,7 @@ func (a *Adapter) handleCommandProgress(channelID string, progressTS *string, ev
 		return nil
 	}
 
-	ts, err := a.sendBlocksSDK(context.Background(), channelID, blocks, "", "Command progress")
+	ts, err := a.sendBlocksSDK(context.Background(), channelID, blocks, threadTS, "Command progress")
 	if err != nil {
 		a.Logger().Debug("Failed to send progress message", "error", err)
 		return err

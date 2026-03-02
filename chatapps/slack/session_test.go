@@ -35,13 +35,13 @@ func TestSession_BR001_SameUserBotChannel(t *testing.T) {
 	adapter := createTestAdapterForSession()
 
 	// First call - should create session
-	sessionID1 := adapter.GetOrCreateSession("U123", "B456", "C789")
+	sessionID1 := adapter.GetOrCreateSession("U123", "B456", "C789", "")
 	if sessionID1 == "" {
 		t.Fatal("Expected non-empty session ID on first call")
 	}
 
 	// Second call with same parameters - should return same session ID
-	sessionID2 := adapter.GetOrCreateSession("U123", "B456", "C789")
+	sessionID2 := adapter.GetOrCreateSession("U123", "B456", "C789", "")
 	if sessionID2 == "" {
 		t.Fatal("Expected non-empty session ID on second call")
 	}
@@ -69,10 +69,10 @@ func TestSession_BR002_DifferentUser(t *testing.T) {
 	adapter := createTestAdapterForSession()
 
 	// User 1
-	sessionID1 := adapter.GetOrCreateSession("U123", "B456", "C789")
+	sessionID1 := adapter.GetOrCreateSession("U123", "B456", "C789", "")
 
 	// User 2, same bot and channel
-	sessionID2 := adapter.GetOrCreateSession("U456", "B456", "C789")
+	sessionID2 := adapter.GetOrCreateSession("U456", "B456", "C789", "")
 
 	if sessionID1 == sessionID2 {
 		t.Errorf("Expected different session IDs for different users, got same: %s", sessionID1)
@@ -102,10 +102,10 @@ func TestSession_BR003_DifferentBot(t *testing.T) {
 	adapter := createTestAdapterForSession()
 
 	// Bot 1
-	sessionID1 := adapter.GetOrCreateSession("U123", "B456", "C789")
+	sessionID1 := adapter.GetOrCreateSession("U123", "B456", "C789", "")
 
 	// Bot 2, same user and channel
-	sessionID2 := adapter.GetOrCreateSession("U123", "B789", "C789")
+	sessionID2 := adapter.GetOrCreateSession("U123", "B789", "C789", "")
 
 	if sessionID1 == sessionID2 {
 		t.Errorf("Expected different session IDs for different bots, got same: %s", sessionID1)
@@ -129,10 +129,10 @@ func TestSession_BR004_DifferentChannel(t *testing.T) {
 	adapter := createTestAdapterForSession()
 
 	// Channel 1
-	sessionID1 := adapter.GetOrCreateSession("U123", "B456", "C789")
+	sessionID1 := adapter.GetOrCreateSession("U123", "B456", "C789", "")
 
 	// Channel 2, same user and bot
-	sessionID2 := adapter.GetOrCreateSession("U123", "B456", "C999")
+	sessionID2 := adapter.GetOrCreateSession("U123", "B456", "C999", "")
 
 	if sessionID1 == sessionID2 {
 		t.Errorf("Expected different session IDs for different channels, got same: %s", sessionID1)
@@ -175,8 +175,8 @@ func TestSession_BR005_DifferentPlatform(t *testing.T) {
 	}, logger, base.WithoutServer())
 
 	// Same user ID, but different platforms
-	slackSessionID := slackAdapter.GetOrCreateSession("U123", "B456", "C789")
-	discordSessionID := discordAdapter.GetOrCreateSession("U123", "B456", "C789")
+	slackSessionID := slackAdapter.GetOrCreateSession("U123", "B456", "C789", "")
+	discordSessionID := discordAdapter.GetOrCreateSession("U123", "B456", "C789", "")
 
 	t.Logf("Slack session ID: %s", slackSessionID)
 	t.Logf("Discord session ID: %s", discordSessionID)
@@ -198,7 +198,7 @@ func TestSession_BR006_EmptyBotUserID(t *testing.T) {
 	adapter := createTestAdapterForSession()
 
 	// Empty botUserID (typical for DM or single-bot setups)
-	sessionID := adapter.GetOrCreateSession("U123", "", "C789")
+	sessionID := adapter.GetOrCreateSession("U123", "", "C789", "")
 
 	if sessionID == "" {
 		t.Error("Expected valid session ID with empty botUserID")
@@ -223,7 +223,7 @@ func TestSession_BR007_EmptyChannelID(t *testing.T) {
 	adapter := createTestAdapterForSession()
 
 	// Empty channelID (typical for direct messages)
-	sessionID := adapter.GetOrCreateSession("U123", "B456", "")
+	sessionID := adapter.GetOrCreateSession("U123", "B456", "", "")
 
 	if sessionID == "" {
 		t.Error("Expected valid session ID with empty channelID")
@@ -248,7 +248,7 @@ func TestSession_BR008_FindSessionByUserAndChannel(t *testing.T) {
 	adapter := createTestAdapterForSession()
 
 	// Create session
-	expectedSessionID := adapter.GetOrCreateSession("U123", "B456", "C789")
+	expectedSessionID := adapter.GetOrCreateSession("U123", "B456", "C789", "")
 
 	// Find session by user and channel
 	foundSession := adapter.FindSessionByUserAndChannel("U123", "C789")
@@ -287,7 +287,7 @@ func TestSession_BR009_LastActiveUpdatedOnReuse(t *testing.T) {
 	adapter := createTestAdapterForSession()
 
 	// Create session
-	sessionID := adapter.GetOrCreateSession("U123", "B456", "C789")
+	sessionID := adapter.GetOrCreateSession("U123", "B456", "C789", "")
 
 	// Get initial LastActive
 	session1 := adapter.FindSessionByUserAndChannel("U123", "C789")
@@ -300,7 +300,7 @@ func TestSession_BR009_LastActiveUpdatedOnReuse(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	// Reuse session (same parameters)
-	adapter.GetOrCreateSession("U123", "B456", "C789")
+	adapter.GetOrCreateSession("U123", "B456", "C789", "")
 
 	// Get updated LastActive
 	session2 := adapter.FindSessionByUserAndChannel("U123", "C789")
@@ -340,7 +340,7 @@ func TestSession_BR010_ConcurrentCreation(t *testing.T) {
 			for _, channel := range channels {
 				go func(u, b, c string) {
 					defer wg.Done()
-					sessionID := adapter.GetOrCreateSession(u, b, c)
+					sessionID := adapter.GetOrCreateSession(u, b, c, "")
 					if sessionID == "" {
 						t.Errorf("Expected non-empty session ID for user=%s, bot=%s, channel=%s", u, b, c)
 					}
@@ -388,7 +388,7 @@ func TestSession_BR010_ConcurrentSameSession(t *testing.T) {
 	for i := 0; i < sessionCount; i++ {
 		go func() {
 			defer wg.Done()
-			sessionID := adapter.GetOrCreateSession("U123", "B456", "C789")
+			sessionID := adapter.GetOrCreateSession("U123", "B456", "C789", "")
 			if sessionID == "" {
 				t.Error("Expected non-empty session ID")
 			}
@@ -417,17 +417,17 @@ func TestSession_Integration_DMScenario(t *testing.T) {
 	adapter := createTestAdapterForSession()
 
 	// User sends DM to bot
-	sessionID1 := adapter.GetOrCreateSession("U123", "", "D123")
+	sessionID1 := adapter.GetOrCreateSession("U123", "", "D123", "")
 
 	// User sends another DM - should reuse session
-	sessionID2 := adapter.GetOrCreateSession("U123", "", "D123")
+	sessionID2 := adapter.GetOrCreateSession("U123", "", "D123", "")
 
 	if sessionID1 != sessionID2 {
 		t.Errorf("DM session should be reused: %s vs %s", sessionID1, sessionID2)
 	}
 
 	// Different user's DM should get different session
-	sessionID3 := adapter.GetOrCreateSession("U456", "", "D456")
+	sessionID3 := adapter.GetOrCreateSession("U456", "", "D456", "")
 	if sessionID1 == sessionID3 {
 		t.Error("Different users should have different DM sessions")
 	}
@@ -446,13 +446,13 @@ func TestSession_Integration_MultiChannelUser(t *testing.T) {
 	adapter := createTestAdapterForSession()
 
 	// User in channel 1
-	sessionC1 := adapter.GetOrCreateSession("U123", "B456", "C1")
+	sessionC1 := adapter.GetOrCreateSession("U123", "B456", "C1", "")
 
 	// Same user in channel 2
-	sessionC2 := adapter.GetOrCreateSession("U123", "B456", "C2")
+	sessionC2 := adapter.GetOrCreateSession("U123", "B456", "C2", "")
 
 	// Same user in channel 3
-	sessionC3 := adapter.GetOrCreateSession("U123", "B456", "C3")
+	sessionC3 := adapter.GetOrCreateSession("U123", "B456", "C3", "")
 
 	// All should be different
 	if sessionC1 == sessionC2 || sessionC1 == sessionC3 || sessionC2 == sessionC3 {
@@ -474,10 +474,10 @@ func TestSession_Integration_ThreadedConversation(t *testing.T) {
 	adapter := createTestAdapterForSession()
 
 	// Initial message in thread
-	sessionID1 := adapter.GetOrCreateSession("U123", "B456", "C123")
+	sessionID1 := adapter.GetOrCreateSession("U123", "B456", "C123", "")
 
 	// Reply in same thread (same user, bot, channel)
-	sessionID2 := adapter.GetOrCreateSession("U123", "B456", "C123")
+	sessionID2 := adapter.GetOrCreateSession("U123", "B456", "C123", "")
 
 	// Should reuse same session for thread context
 	if sessionID1 != sessionID2 {

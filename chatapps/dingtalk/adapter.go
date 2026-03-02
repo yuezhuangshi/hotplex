@@ -127,7 +127,7 @@ func (a *Adapter) handleCallbackMessage(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	sessionID := a.GetOrCreateSession(callback.SenderID, "", callback.ConversationID)
+	sessionID := a.GetOrCreateSession(callback.SenderID, "", callback.ConversationID, "")
 
 	msg := &base.ChatMessage{
 		Platform:  "dingtalk",

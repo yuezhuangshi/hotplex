@@ -45,14 +45,12 @@ func (e *DisconnectExecutor) Execute(ctx context.Context, req *Request, callback
 
 	// Step 1: Find session
 	_ = emitter.Running(0)
-	_ = emitter.Emit("Disconnecting CLI...")
 
 	sessionID := req.SessionID
 
 	sess, exists := e.engine.GetSession(sessionID)
 	if !exists {
 		_ = emitter.Error(0, "No active session found")
-		_ = emitter.Emit("Disconnect Failed")
 		return &Result{
 			Success: false,
 			Message: "No active session found",
@@ -60,16 +58,13 @@ func (e *DisconnectExecutor) Execute(ctx context.Context, req *Request, callback
 	}
 
 	_ = emitter.Success(0, "Session located")
-	_ = emitter.Emit("Disconnecting CLI...")
 
 	// Step 2: Terminate session (context is preserved)
 	_ = emitter.Running(1)
-	_ = emitter.Emit("Disconnecting CLI...")
 
 	// StopSession preserves the marker file, allowing resume on next message
 	if err := e.engine.StopSession(sessionID, "user_requested_disconnect"); err != nil {
 		_ = emitter.Error(1, fmt.Sprintf("Failed: %v", err))
-		_ = emitter.Emit("Disconnect Failed")
 		return &Result{
 			Success: false,
 			Message: fmt.Sprintf("Failed to disconnect: %v", err),
@@ -77,7 +72,6 @@ func (e *DisconnectExecutor) Execute(ctx context.Context, req *Request, callback
 	}
 
 	_ = emitter.Success(1, "Process terminated")
-	_ = emitter.Emit("Disconnecting CLI...")
 
 	// Complete
 	_ = emitter.Complete("Disconnected from CLI. Context preserved. Next message will resume.")

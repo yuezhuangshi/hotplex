@@ -213,7 +213,7 @@ func (a *Adapter) handleMessageCommand(ctx context.Context, interaction Interact
 
 	// Note: GuildID is used as botUserID parameter to scope sessions per Discord server
 	// This ensures users have different sessions in different Guilds
-	sessionID := a.GetOrCreateSession(interaction.Member.User.ID, interaction.GuildID, interaction.Channel)
+	sessionID := a.GetOrCreateSession(interaction.Member.User.ID, interaction.GuildID, interaction.Channel, "")
 
 	msg := &base.ChatMessage{
 		Platform:  "discord",

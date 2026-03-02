@@ -196,13 +196,13 @@ func TestMessageAggregatorProcessor_differentEventTypes(t *testing.T) {
 		},
 	}
 
-	// Send answer message (different event type)
+	// Send step_finish message (different aggregating event type)
 	msg2 := &base.ChatMessage{
 		Platform:  "slack",
 		SessionID: "test-session",
-		Content:   "Answer",
+		Content:   "Finished",
 		Metadata: map[string]any{
-			"event_type": "answer",
+			"event_type": "step_finish",
 			"stream":     true,
 		},
 	}
@@ -230,13 +230,13 @@ func TestMessageAggregatorProcessor_flushBuffer(t *testing.T) {
 		MinContent: 100,
 	})
 
-	// First buffer a message (use 'answer' event type which aggregates)
+	// First buffer a message (use 'tool_use' event type which aggregates)
 	msg1 := &base.ChatMessage{
 		Platform:  "slack",
 		SessionID: "test-session",
 		Content:   "Buffered",
 		Metadata: map[string]any{
-			"event_type": "answer",
+			"event_type": "tool_use",
 			"stream":     true,
 		},
 	}
@@ -248,7 +248,7 @@ func TestMessageAggregatorProcessor_flushBuffer(t *testing.T) {
 		SessionID: "test-session",
 		Content:   "Final",
 		Metadata: map[string]any{
-			"event_type": "answer",
+			"event_type": "tool_use",
 			"stream":     true,
 			"is_final":   true,
 		},

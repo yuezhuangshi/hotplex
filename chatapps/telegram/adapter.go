@@ -232,6 +232,7 @@ func (a *Adapter) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		fmt.Sprintf("%d", update.Message.From.ID), // userID
 		"", // botUserID (empty for telegram)
 		fmt.Sprintf("%d", update.Message.Chat.ID), // channelID
+		"", // threadID
 	)
 
 	msg := &base.ChatMessage{

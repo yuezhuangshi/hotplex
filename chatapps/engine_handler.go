@@ -226,8 +226,8 @@ type StreamCallback struct {
 	// Starting message records for 3s delayed deletion (session_start + engine_starting)
 	startingMsgRecords []msgRecord
 
-	// Turn state for concurrent turn support - stores cleanup records per turn
-	turnState *intengine.TurnState
+	// Cleanup records for sliding window management and final deletion
+	cleanupMsgRecords []msgRecord
 
 	// Platform-specific operations (dependency injection for testability and platform agnosticism)
 	messageOps MessageOperations
@@ -266,7 +266,6 @@ func NewStreamCallback(
 	metadata map[string]any,
 	messageOps MessageOperations,
 	sessionOps SessionOperations,
-	turnState *intengine.TurnState,
 ) *StreamCallback {
 	cb := &StreamCallback{
 		ctx:        ctx,
@@ -279,7 +278,6 @@ func NewStreamCallback(
 		processor:  NewDefaultProcessorChain(ctx, logger),
 		messageOps: messageOps,
 		sessionOps: sessionOps,
-		turnState:  turnState,
 	}
 
 	// Extract user message coordinates for reaction lifecycle
@@ -455,18 +453,23 @@ func (c *StreamCallback) sendMessageAndGetTS(msg *ChatMessage) error {
 	c.trackMessage(processedMsg)
 
 	// Copy message_ts back to original msg metadata if present in processedMsg
+	// Use mutex for thread-safe metadata modification
 	if processedMsg.Metadata != nil {
-		if ts, ok := processedMsg.Metadata["message_ts"].(string); ok && ts != "" {
+		ts, ok1 := processedMsg.Metadata["message_ts"].(string)
+		channelID, ok2 := processedMsg.Metadata["channel_id"].(string)
+
+		if (ok1 && ts != "") || (ok2 && channelID != "") {
+			c.mu.Lock()
 			if msg.Metadata == nil {
 				msg.Metadata = make(map[string]any)
 			}
-			msg.Metadata["message_ts"] = ts
-		}
-		if channelID, ok := processedMsg.Metadata["channel_id"].(string); ok && channelID != "" {
-			if msg.Metadata == nil {
-				msg.Metadata = make(map[string]any)
+			if ok1 && ts != "" {
+				msg.Metadata["message_ts"] = ts
 			}
-			msg.Metadata["channel_id"] = channelID
+			if ok2 && channelID != "" {
+				msg.Metadata["channel_id"] = channelID
+			}
+			c.mu.Unlock()
 		}
 	}
 
@@ -565,42 +568,27 @@ func (c *StreamCallback) trackMessage(msg *base.ChatMessage) {
 	defer c.mu.Unlock()
 
 	// Check if this TS is already tracked to handle in-place updates gracefully
-	if c.turnState != nil && c.turnState.HasMessageTS(ts) {
-		return
+	for _, rec := range c.cleanupMsgRecords {
+		if rec.MessageTS == ts {
+			return
+		}
 	}
 
-	// Record the message to turn state (for concurrent turn support)
-	if c.turnState != nil {
-		c.turnState.AddCleanupMsg(intengine.CleanupMsgRecord{
-			ChannelID: ch,
-			MessageTS: ts,
-			ZoneIndex: zone,
-			EventType: eventType,
-		})
-	}
-	// Note: legacy cleanupMsgRecords removed after turnState migration complete
+	// Record the message for cleanup
+	c.cleanupMsgRecords = append(c.cleanupMsgRecords, msgRecord{
+		ChannelID: ch,
+		MessageTS: ts,
+		ZoneIndex: zone,
+		EventType: eventType,
+	})
 
 	// Enforce sliding window independently for Thinking and Action zones
 	c.enforceSlidingWindow(zone)
 }
 
 // enforceSlidingWindow deletes oldest messages when the limit is exceeded.
-// Uses turnState for concurrent turn support
 // NOTE: Caller must hold c.mu lock before calling this method
 func (c *StreamCallback) enforceSlidingWindow(zone int) {
-	// Use turnState if available (concurrent turn support)
-	if c.turnState != nil {
-		c.enforceSlidingWindowWithTurnState(zone)
-		return
-	}
-
-	// No turnState available - skip sliding window enforcement
-	// This should not happen in normal operation
-	c.logger.Debug("turnState not available, skipping sliding window enforcement", "zone", zone)
-}
-
-// enforceSlidingWindowWithTurnState enforces sliding window using turnState
-func (c *StreamCallback) enforceSlidingWindowWithTurnState(zone int) {
 	maxMsgs := 5 // Default for other zones
 	switch zone {
 	case ZoneThinking:
@@ -609,28 +597,70 @@ func (c *StreamCallback) enforceSlidingWindowWithTurnState(zone int) {
 		maxMsgs = 2 // Keeping latest 2 Actions
 	}
 
-	c.turnState.EnforceSlidingWindow(zone, maxMsgs, func(rec intengine.CleanupMsgRecord) {
-		if c.messageOps == nil {
-			return
+	var zoneRecords []msgRecord
+	var otherRecords []msgRecord
+
+	// Split records into current zone and others
+	for _, rec := range c.cleanupMsgRecords {
+		if rec.ZoneIndex == zone {
+			zoneRecords = append(zoneRecords, rec)
+		} else {
+			otherRecords = append(otherRecords, rec)
 		}
+	}
+
+	if len(zoneRecords) <= maxMsgs {
+		return
+	}
+
+	// Find the oldest evictable record (skip startup messages in Zone 1)
+	var toEvict msgRecord
+	var remainingInZone []msgRecord
+	found := false
+
+	for _, rec := range zoneRecords {
+		if !found && zone > 0 {
+			// Protection: never evict startup markers from sliding window
+			if rec.EventType == "session_start" || rec.EventType == "engine_starting" {
+				remainingInZone = append(remainingInZone, rec)
+				continue
+			}
+		}
+
+		if !found {
+			toEvict = rec
+			found = true
+			continue
+		}
+		remainingInZone = append(remainingInZone, rec)
+	}
+
+	if !found {
+		return
+	}
+
+	// Rebuild the final records slice
+	c.cleanupMsgRecords = append(remainingInZone, otherRecords...)
+
+	// Delete evicted message
+	if c.messageOps != nil {
 		go func() {
-			_ = c.messageOps.DeleteMessage(context.Background(), rec.ChannelID, rec.MessageTS)
+			_ = c.messageOps.DeleteMessage(context.Background(), toEvict.ChannelID, toEvict.MessageTS)
 		}()
-	})
+	}
 }
 
 // scheduleDeleteActionMessages schedules 3-second delayed deletion
-// of all tracked Thinking and Action Zone messages using turnState
+// of all tracked messages
 func (c *StreamCallback) scheduleDeleteActionMessages() {
-	if c.turnState == nil {
-		c.logger.Debug("turnState not available, skipping scheduled deletion")
+	c.mu.Lock()
+	if len(c.cleanupMsgRecords) == 0 {
+		c.mu.Unlock()
 		return
 	}
-
-	if c.turnState.Len() == 0 {
-		return
-	}
-	records := c.turnState.GetAllAndClear()
+	records := c.cleanupMsgRecords
+	c.cleanupMsgRecords = nil
+	c.mu.Unlock()
 
 	time.AfterFunc(3*time.Second, func() {
 		if c.messageOps == nil {
@@ -648,7 +678,6 @@ func (c *StreamCallback) scheduleDeleteActionMessages() {
 // updateStatusMessage updates the status indicator message in-place
 // It sends a base.ChatMessage with the appropriate MessageType
 // The Adapter's MessageBuilder will handle conversion to platform-specific blocks
-// NOTE: Caller must hold c.mu lock before calling this method
 func (c *StreamCallback) updateStatusMessage(statusType base.MessageType, displayText string) error {
 	c.mu.Lock()
 	// Skip if status hasn't changed (avoid redundant updates)
@@ -657,12 +686,10 @@ func (c *StreamCallback) updateStatusMessage(statusType base.MessageType, displa
 		return nil
 	}
 
-	// Throttle repetitive thinking streaming updates to ~1 per second
-	if c.currentStatus == statusType && statusType == base.MessageTypeThinking {
-		if time.Since(c.lastStatusUpdate) < time.Second {
-			c.mu.Unlock()
-			return nil
-		}
+	// Throttle repetitive status updates to ~1 per second if type is unchanged
+	if c.currentStatus == statusType && time.Since(c.lastStatusUpdate) < time.Second {
+		c.mu.Unlock()
+		return nil
 	}
 	c.lastStatusUpdate = time.Now()
 
@@ -774,6 +801,9 @@ func (c *StreamCallback) handleToolUse(data any) error {
 			}
 		}
 	}
+
+	// Reaction lifecycle: 🧠 → 🔨
+	c.setReaction("hammer_and_wrench")
 
 	// Update status indicator to show current tool being used
 	if err := c.updateStatusMessage(base.MessageTypeToolUse, toolName); err != nil {
@@ -983,6 +1013,10 @@ func (c *StreamCallback) handleError(data any) error {
 		c.logger.Debug("Clearing thinking state for error")
 	}
 
+	// Cleanup any lingering intermediate messages on error
+	c.scheduleDeleteActionMessages()
+	c.scheduleDeleteStartingMessage()
+
 	var errMsg string
 	switch v := data.(type) {
 	case string:
@@ -1028,6 +1062,9 @@ func (c *StreamCallback) handleDangerBlock(data any) error {
 		reason = "security_block"
 	}
 
+	// Reaction lifecycle: set 🚫 on security block
+	c.setReaction("no_entry_sign")
+
 	// Log danger block event (INFO level for security events)
 	c.logger.Info("Danger block detected",
 		"session_id", c.sessionID,
@@ -1064,6 +1101,11 @@ func (c *StreamCallback) handleSessionStats(data any) error {
 		c.streamState.Flush()
 		c.streamState = nil
 	}
+
+	// Final cleanup of transient transition messages (Thinking + Action Zone)
+	// This applies a 3s delayed deletion for a clean end-state UX
+	c.scheduleDeleteActionMessages()
+	c.scheduleDeleteStartingMessage()
 
 	// Send stats message with platform-agnostic MessageType
 	msg := &base.ChatMessage{
@@ -1120,6 +1162,9 @@ func (c *StreamCallback) handleCommandProgress(data any) error {
 	} else {
 		title = "Processing..."
 	}
+
+	// Reaction lifecycle: ensure 🔨 on progress
+	c.setReaction("hammer_and_wrench")
 
 	msg := &base.ChatMessage{
 		Type:    base.MessageTypeCommandProgress,
@@ -1354,29 +1399,31 @@ func (c *StreamCallback) copyMessageMetadata() map[string]any {
 // NOTE: message_ts is intentionally NOT copied because it refers to the user's message,
 // not the bot's message. Copying it causes Slack API errors (cant_update_message).
 func (c *StreamCallback) mergeMetadata(metadata map[string]any) map[string]any {
-	if metadata == nil {
-		metadata = make(map[string]any)
+	result := make(map[string]any)
+	for k, v := range metadata {
+		result[k] = v
 	}
+
 	// Copy over important metadata from stored metadata
 	if c.metadata != nil {
 		if channelID, ok := c.metadata["channel_id"]; ok {
-			metadata["channel_id"] = channelID
+			result["channel_id"] = channelID
 		}
 		if channelType, ok := c.metadata["channel_type"]; ok {
-			metadata["channel_type"] = channelType
+			result["channel_type"] = channelType
 		}
 		if threadTS, ok := c.metadata["thread_ts"]; ok {
-			metadata["thread_ts"] = threadTS
+			result["thread_ts"] = threadTS
 		}
 		if userID, ok := c.metadata["user_id"]; ok {
-			metadata["user_id"] = userID
+			result["user_id"] = userID
 		}
 		if messageID, ok := c.metadata["message_id"]; ok {
-			metadata["message_id"] = messageID
+			result["message_id"] = messageID
 		}
 		// Do NOT copy message_ts - it refers to the user's message, not the bot's message.
 	}
-	return metadata
+	return result
 }
 
 // EngineMessageHandler implements MessageHandler and integrates with Engine
@@ -1490,20 +1537,8 @@ func (h *EngineMessageHandler) Handle(ctx context.Context, msg *ChatMessage) err
 	messageOps := h.adapters.GetMessageOperations(msg.Platform)
 	sessionOps := h.adapters.GetSessionOperations(msg.Platform)
 
-	// Get or create turn state for concurrent turn support
-	// Each turn maintains independent cleanup records to prevent message leakage
-	// Legacy sessions might not be in cache; we'll create a default turn state if missing
-	var turnState *intengine.TurnState
-	if sess, ok := h.engine.GetSession(msg.SessionID); ok && sess != nil {
-		turnState = sess.GetOrCreateTurn(msg.SessionID + ":" + time.Now().Format("150405.000"))
-	} else {
-		// Optimization: Create a standalone turn state to track messages for cleanup even if session cache is cold
-		turnState = intengine.NewTurnState(msg.SessionID + ":cold-start:" + time.Now().Format("150405.000"))
-		h.logger.Debug("Created standalone turn state for cold-start session", "session_id", msg.SessionID)
-	}
-
 	// Create stream callback with injected dependencies
-	callback := NewStreamCallback(ctx, msg.SessionID, msg.Platform, h.adapters, h.logger, msg.Metadata, messageOps, sessionOps, turnState)
+	callback := NewStreamCallback(ctx, msg.SessionID, msg.Platform, h.adapters, h.logger, msg.Metadata, messageOps, sessionOps)
 	defer callback.Close() // Ensure processor resources are released
 
 	wrappedCallback := func(eventType string, data any) error {
@@ -1702,6 +1737,9 @@ func (c *StreamCallback) handleAskUserQuestion(data any) error {
 		return nil
 	}
 
+	// Reaction lifecycle: set ⏳ on question
+	c.setReaction("hourglass_flowing_sand")
+
 	// Send ask user question message with platform-agnostic MessageType
 	msg := &base.ChatMessage{
 		Type:    base.MessageTypeAskUserQuestion,
@@ -1822,6 +1860,9 @@ func (c *StreamCallback) handleEngineStarting(data any) error {
 // Implements EventTypeUserMessageReceived per spec (0.6)
 // Triggered immediately after user message is received
 func (c *StreamCallback) handleUserMessageReceived(_ any) error {
+	// Reaction lifecycle: set 📥 on acknowledgment
+	c.setReaction("inbox_tray")
+
 	// Per spec: context block with :inbox: emoji
 	// Content must not be empty to avoid "no_text" error
 	msg := &base.ChatMessage{
@@ -1879,6 +1920,9 @@ func (c *StreamCallback) handlePermissionRequest(data any) error {
 
 	// Get tool and input for display
 	tool, input := req.GetToolAndInput()
+
+	// Reaction lifecycle: set ⏳ on permission wait
+	c.setReaction("hourglass_flowing_sand")
 
 	msg := &base.ChatMessage{
 		Type:    base.MessageTypePermissionRequest,

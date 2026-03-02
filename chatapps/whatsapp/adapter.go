@@ -6,11 +6,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/hrygo/hotplex/internal/panicx"
 	"io"
 	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/hrygo/hotplex/internal/panicx"
 
 	"github.com/hrygo/hotplex/chatapps/base"
 )
@@ -210,7 +211,7 @@ func (a *Adapter) handleMessage(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 
-				sessionID := a.GetOrCreateSession(msg.From, "", msg.From)
+				sessionID := a.GetOrCreateSession(msg.From, "", msg.From, "")
 
 				chatMsg := &base.ChatMessage{
 					Platform:  "whatsapp",

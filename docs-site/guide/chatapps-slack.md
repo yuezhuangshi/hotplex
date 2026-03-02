@@ -85,10 +85,13 @@ HotPlex supports two modes of existence. Define your preference in the `.env` co
 
 #### 1. The Pulse of Progress (Reactions)
 The agent communicates its internal state via a subtle language of emojis:
-- 📥 (`:inbox:`): The request has been queued in the session pool.
-- 🧠 (`:brain:`): The engine is performing deep cognitive reasoning or codebase scanning.
+- 📥 (`:inbox_tray:`): The request has been queued and acknowledged in the session pool.
+- 🧠 (`:brain:`): The engine is performing deep cognitive reasoning or planning.
+- 🔨 (`:hammer_and_wrench:`): The agent is actively executing tools, shell commands, or background processes.
+- ⏳ (`:hourglass_flowing_sand:`): Execution is suspended, awaiting human-in-the-loop (HITL) authorization or input.
 - ✅ (`:white_check_mark:`): The interaction loop has reached a successful resolution.
-- ⚠️ (`:warning:`): An unexpected friction was encountered. Check the Error Zone.
+- ❌ (`:x:`): An error was encountered during the process. Check the Display area for details.
+- 🚫 (`:no_entry_sign:`): A security block or safety policy violation was detected.
 
 #### 2. Structural Interaction (6 Zones Mapping)
 Every agent message sequence is divided into atomic **Zones** to ensure clarity and avoid history bloat:

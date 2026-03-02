@@ -36,6 +36,7 @@ type Request struct {
 	Text              string         // Command arguments
 	UserID            string         // User who invoked the command
 	ChannelID         string         // Channel where command was invoked
+	ThreadTS          string         // Thread timestamp for threaded responses
 	SessionID         string         // Associated session ID
 	ProviderSessionID string         // Provider session ID (if available)
 	ResponseURL       string         // Slack response_url (optional)
