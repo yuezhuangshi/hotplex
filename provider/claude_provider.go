@@ -194,8 +194,32 @@ func (p *ClaudeCodeProvider) ParseEvent(line string) ([]*ProviderEvent, error) {
 			TotalDurationMs: int64(dur),
 			TotalCostUSD:    msg.TotalCostUSD,
 		}
-		// Extract tokens if usage is available
-		if msg.Usage != nil {
+		// Extract tokens from ModelUsage (new Claude Code versions) or fallback to Usage
+		var totalInput, totalOutput, totalCacheWrite, totalCacheRead int32
+		var totalCost float64
+		hasModelUsage := false
+		if len(msg.ModelUsage) > 0 {
+			for _, mUsage := range msg.ModelUsage {
+				totalInput += mUsage.InputTokens
+				totalOutput += mUsage.OutputTokens
+				totalCacheWrite += mUsage.CacheCreationInputTokens
+				totalCacheRead += mUsage.CacheReadInputTokens
+				totalCost += mUsage.CostUSD
+			}
+			if totalInput > 0 || totalOutput > 0 || totalCacheWrite > 0 || totalCacheRead > 0 {
+				hasModelUsage = true
+			}
+		}
+
+		if hasModelUsage {
+			event.Metadata.InputTokens = totalInput
+			event.Metadata.OutputTokens = totalOutput
+			event.Metadata.CacheWriteTokens = totalCacheWrite
+			event.Metadata.CacheReadTokens = totalCacheRead
+			if event.Metadata.TotalCostUSD == 0 {
+				event.Metadata.TotalCostUSD = totalCost
+			}
+		} else if msg.Usage != nil {
 			event.Metadata.InputTokens = msg.Usage.InputTokens
 			event.Metadata.OutputTokens = msg.Usage.OutputTokens
 			event.Metadata.CacheWriteTokens = msg.Usage.CacheWriteInputTokens

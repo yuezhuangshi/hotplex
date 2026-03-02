@@ -8,6 +8,8 @@ This document describes how to integrate and use **Claude Code** within the HotP
 
 **Claude Code** is the default and most advanced provider in HotPlex. It is highly optimized for interactive, multi-turn coding tasks and integrates seamlessly with HotPlex's **Hot-Multiplexing** technology to provide millisecond-level response times.
 
+> **Note:** HotPlex is fully tested and compatible with **Claude Code v2.1.x** and above, including full support for their latest `modelUsage` token tracking mechanisms.
+
 ## Installation
 
 Claude Code must be installed via npm:

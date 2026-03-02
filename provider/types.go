@@ -23,8 +23,18 @@ type StreamMessage struct {
 	Usage        *UsageStats       `json:"usage,omitempty"`
 	Result       string            `json:"result,omitempty"`
 	// Permission request fields (Issue #39)
-	Permission *PermissionDetail `json:"permission,omitempty"`
-	Decision   *DecisionDetail   `json:"decision,omitempty"`
+	Permission *PermissionDetail          `json:"permission,omitempty"`
+	Decision   *DecisionDetail            `json:"decision,omitempty"`
+	ModelUsage map[string]ModelUsageStats `json:"modelUsage,omitempty"`
+}
+
+// ModelUsageStats represents the token consumption per model.
+type ModelUsageStats struct {
+	InputTokens              int32   `json:"inputTokens"`
+	OutputTokens             int32   `json:"outputTokens"`
+	CacheReadInputTokens     int32   `json:"cacheReadInputTokens"`
+	CacheCreationInputTokens int32   `json:"cacheCreationInputTokens"`
+	CostUSD                  float64 `json:"costUSD"`
 }
 
 // UsageStats represents the token consumption breakdown.

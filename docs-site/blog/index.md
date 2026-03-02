@@ -1,5 +1,7 @@
 # HotPlex Engineering Blog
 
+![HotPlex Beaver Banner](/images/hotplex_beaver_banner.webp)
+
 ## Insights into the Future of Agentic Infrastructure
 
 Welcome to the official HotPlex blog. This is where our engineering team shares deep dives into stateful orchestration, high-performance streaming, and the strategic vision behind the HotPlex platform.

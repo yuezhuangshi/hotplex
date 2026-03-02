@@ -81,6 +81,21 @@ PROTOCOL_EXAMPLES = {
         "duration_ms": 800,
         "usage": {"input_tokens": 100, "output_tokens": 20}
     },
+    "result_with_model_usage": {
+        "type": "result",
+        "result": "Done with model usage",
+        "duration_ms": 1200,
+        "usage": {"input_tokens": 0, "output_tokens": 0},
+        "modelUsage": {
+            "claude-sonnet-4-6": {
+                "inputTokens": 100,
+                "outputTokens": 20,
+                "cacheReadInputTokens": 0,
+                "cacheCreationInputTokens": 0,
+                "costUSD": 0.005
+            }
+        }
+    },
     "permission_request": {
         "type": "permission_request",
         "session_id": "sess_000",
@@ -118,6 +133,8 @@ class ProtocolVerifier:
         if "output" in data: has_content = True
         if "message" in data and "content" in data["message"]: has_content = True
         if "status" in data: has_content = True
+
+        if "error" in data: has_content = True
 
         if not has_content and e_type not in ["result", "tool_use", "permission_request"]:
              self.errors.append(f"[{name}] Event of type '{e_type}' has no detectable content fields")

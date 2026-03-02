@@ -8,6 +8,8 @@
 
 **Claude Code** 是 HotPlex 的默认驱动程序，也是功能最强大的 Provider。它针对交互式、多轮编码任务进行了高度优化，并与 HotPlex 的 **热复用 (Hot-Multiplexing)** 技术无缝集成，提供毫秒级的响应速度。
 
+> **注：** HotPlex 已全面兼容及测试 **Claude Code v2.1.x** 及以上版本，并完整支持其底层最新的基于 `modelUsage` 的 Token 消耗统计机制。
+
 ## 安装
 
 必须通过 npm 安装 Claude Code：

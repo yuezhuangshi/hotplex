@@ -109,6 +109,25 @@ func TestClaudeCodeProvider_ExhaustiveParsing(t *testing.T) {
 			},
 		},
 		{
+			name:     "result_with_model_usage",
+			json:     `{"type": "result", "result": "Done with model usage", "duration_ms": 1200, "usage": {"input_tokens": 0, "output_tokens": 0}, "modelUsage": {"claude-sonnet-4-6": {"inputTokens": 100, "outputTokens": 20, "cacheReadInputTokens": 0, "cacheCreationInputTokens": 0, "costUSD": 0.005}}}`,
+			wantType: []ProviderEventType{EventTypeResult},
+			check: func(t *testing.T, evts []*ProviderEvent) {
+				if evts[0].Metadata == nil {
+					t.Fatal("Expected non-nil metadata")
+				}
+				if evts[0].Metadata.InputTokens != 100 {
+					t.Errorf("Expected input_tokens=100, got %d", evts[0].Metadata.InputTokens)
+				}
+				if evts[0].Metadata.OutputTokens != 20 {
+					t.Errorf("Expected output_tokens=20, got %d", evts[0].Metadata.OutputTokens)
+				}
+				if evts[0].Metadata.TotalCostUSD != 0.005 {
+					t.Errorf("Expected total_cost_usd=0.005, got %f", evts[0].Metadata.TotalCostUSD)
+				}
+			},
+		},
+		{
 			name:     "result_without_usage",
 			json:     `{"type": "result", "result": "Done", "duration_ms": 1000}`,
 			wantType: []ProviderEventType{EventTypeResult},

@@ -44,6 +44,7 @@
   "oauth_config": {
     "scopes": {
       "bot": [
+        "assistant:write",
         "app_mentions:read",
         "chat:write",
         "chat:write.public",
@@ -126,6 +127,7 @@
   "oauth_config": {
     "scopes": {
       "bot": [
+        "assistant:write",
         "app_mentions:read",
         "chat:write",
         "chat:write.public",

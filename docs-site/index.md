@@ -7,7 +7,7 @@ hero:
   text: "The Strategic Bridge for AI Agent Engineering"
   tagline: Stateful, Secure, and High-Performance Agent Infrastructure.
   image:
-    src: /images/mascot_primary.svg
+    src: /logo.svg
     alt: HotPlex Primary Mascot
   actions:
     - theme: brand
@@ -131,8 +131,6 @@ features:
   </div>
 </div>
 
----
-
 <div style="text-align: center; margin: 60px 0;">
   <h2>Engineering Excellence</h2>
   <p style="max-width: 600px; margin: 0 auto; opacity: 0.8;">
@@ -146,8 +144,14 @@ features:
 
 </div>
 
+<div style="width: 100%; overflow: hidden; border-radius: 12px; margin: 40px 0;">
+  <img src="/images/hotplex_beaver_banner.webp" alt="HotPlex Mascot Banner" style="width: 100%; height: auto; object-fit: cover;" />
+</div>
+
 ---
 
-<p align="center">
+<div align="center">
+
   [Explore the Architecture](/guide/architecture) · [Quick Start Guide](/guide/getting-started) · [Join the Community](https://github.com/hrygo/hotplex/discussions)
-</p>
+
+</div>

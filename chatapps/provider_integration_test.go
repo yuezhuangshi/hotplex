@@ -104,12 +104,9 @@ func TestProviderToSlackTokenDisplay_NoUsage(t *testing.T) {
 
 	// Simulate stats with zero tokens
 	stats := &event.SessionStatsData{
-		SessionID:       "test-session",
 		TotalDurationMs: 1000,
 		InputTokens:     0,
 		OutputTokens:    0,
-		ToolCallCount:   0,
-		FilesModified:   0,
 	}
 
 	chatMsg := &base.ChatMessage{

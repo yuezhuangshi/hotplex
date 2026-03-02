@@ -19,7 +19,7 @@ export default defineConfig({
   ],
 
   themeConfig: {
-    logo: '/images/mascot_primary.svg',
+    logo: '/logo.svg',
     siteTitle: 'HotPlex',
 
     nav: [
