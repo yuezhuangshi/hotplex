@@ -31,7 +31,7 @@ func (w *sessionWrapper) Status() string {
 	if w.sess == nil {
 		return ""
 	}
-	return "active"
+	return string(w.sess.GetStatus())
 }
 
 func (w *sessionWrapper) CreatedAt() time.Time {
@@ -39,6 +39,13 @@ func (w *sessionWrapper) CreatedAt() time.Time {
 		return time.Time{}
 	}
 	return w.sess.CreatedAt
+}
+
+func (w *sessionWrapper) IsResumed() bool {
+	if w.sess == nil {
+		return false
+	}
+	return w.sess.IsResuming
 }
 
 // engineWrapper wraps engine.Engine to implement chatapps.Engine interface
@@ -200,6 +207,7 @@ type StreamCallback struct {
 	adapters     *AdapterManager
 	logger       *slog.Logger
 	mu           sync.Mutex
+	isHot        bool // Tracks if session is hot-multiplexed (active)
 	isFirst      bool
 	thinkingSent bool            // Tracks if thinking/status message was sent
 	metadata     map[string]any  // Original message metadata (channel_id, thread_ts, etc.)
@@ -260,6 +268,7 @@ func NewStreamCallback(
 	sessionID, platform string,
 	adapters *AdapterManager,
 	logger *slog.Logger,
+	isHot bool,
 	metadata map[string]any,
 	messageOps MessageOperations,
 	sessionOps SessionOperations,
@@ -270,6 +279,7 @@ func NewStreamCallback(
 		platform:   platform,
 		adapters:   adapters,
 		logger:     logger,
+		isHot:      isHot,
 		isFirst:    true,
 		metadata:   metadata,
 		processor:  NewDefaultProcessorChain(ctx, logger),
@@ -401,13 +411,15 @@ func (c *StreamCallback) handleThinking(data any) error {
 
 	c.mu.Lock()
 	sessionStartSent := c.sessionStartSent
+	isHot := c.isHot
 	c.mu.Unlock()
 
-	if !sessionStartSent {
-		c.logger.Debug("thinking event received before session_start - ensuring session_start sent first",
+	if !sessionStartSent && !isHot {
+		c.logger.Debug("thinking event received before session_start on cold startup - ensuring session_start sent first",
 			"session_id", c.sessionID)
 		// Trigger handleSessionStart manually with default content if it hasn't been sent yet
-		// to ensure correct waterfall flow in ChatApp UI
+		// to ensure correct waterfall flow in ChatApp UI.
+		// NOTE: isHot check ensures we don't send "Resuming session" during hot-multiplexing.
 		if err := c.handleSessionStart("Resuming session..."); err != nil {
 			c.logger.Warn("Failed to send auto-session-start", "error", err)
 		}
@@ -477,13 +489,21 @@ func (c *StreamCallback) sendMessageAndGetTS(msg *ChatMessage) error {
 // setReaction sets a reaction on the user's trigger message.
 // Removes previous reaction before adding new one for clean status transitions.
 func (c *StreamCallback) setReaction(emoji string) {
+	c.logger.Debug("setReaction called",
+		"emoji", emoji,
+		"reactionChannelID", c.reactionChannelID,
+		"reactionMessageTS", c.reactionMessageTS,
+		"messageOps", fmt.Sprintf("%T", c.messageOps),
+		"currentReaction", c.currentReaction)
+
 	if c.reactionChannelID == "" || c.reactionMessageTS == "" {
+		c.logger.Warn("setReaction: missing reaction coordinates, skipping")
 		return
 	}
 
 	// Use injected message operations interface (no type assertion needed)
 	if c.messageOps == nil {
-		c.logger.Debug("Message operations not supported on this platform", "platform", c.platform)
+		c.logger.Warn("setReaction: message operations not supported on this platform", "platform", c.platform)
 		return
 	}
 
@@ -1395,7 +1415,7 @@ func (c *StreamCallback) mergeMetadata(metadata map[string]any) map[string]any {
 
 // EngineMessageHandler implements MessageHandler and integrates with Engine
 type EngineMessageHandler struct {
-	engine         *engine.Engine
+	engine         Engine
 	adapters       *AdapterManager
 	workDirFn      func(sessionID string) string
 	taskInstrFn    func(sessionID string) string
@@ -1406,7 +1426,7 @@ type EngineMessageHandler struct {
 }
 
 // NewEngineMessageHandler creates a new EngineMessageHandler
-func NewEngineMessageHandler(engine *engine.Engine, adapters *AdapterManager, opts ...EngineMessageHandlerOption) *EngineMessageHandler {
+func NewEngineMessageHandler(engine Engine, adapters *AdapterManager, opts ...EngineMessageHandlerOption) *EngineMessageHandler {
 	h := &EngineMessageHandler{
 		engine:       engine,
 		adapters:     adapters,
@@ -1504,8 +1524,13 @@ func (h *EngineMessageHandler) Handle(ctx context.Context, msg *ChatMessage) err
 	messageOps := h.adapters.GetMessageOperations(msg.Platform)
 	sessionOps := h.adapters.GetSessionOperations(msg.Platform)
 
+	// Check if session is already active (hot multiplexing)
+	// If session exists in engine and is active (ready/busy), it's a hot start
+	sess, exists := h.engine.GetSession(msg.SessionID)
+	isHot := exists && sess != nil && (sess.Status() == "ready" || sess.Status() == "busy")
+
 	// Create stream callback with injected dependencies
-	callback := NewStreamCallback(ctx, msg.SessionID, msg.Platform, h.adapters, h.logger, msg.Metadata, messageOps, sessionOps)
+	callback := NewStreamCallback(ctx, msg.SessionID, msg.Platform, h.adapters, h.logger, isHot, msg.Metadata, messageOps, sessionOps)
 	defer callback.Close() // Ensure processor resources are released
 
 	wrappedCallback := func(eventType string, data any) error {

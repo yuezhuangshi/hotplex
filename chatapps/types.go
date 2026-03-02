@@ -31,6 +31,7 @@ type Session interface {
 	ID() string
 	Status() string
 	CreatedAt() time.Time
+	IsResumed() bool
 }
 
 // SessionStats holds session statistics

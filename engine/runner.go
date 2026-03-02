@@ -236,11 +236,19 @@ func (r *Engine) executeWithMultiplex(
 		if created && callbackSafe != nil {
 			r.logger.Info("Engine: sending session_start event for cold start",
 				"namespace", r.opts.Namespace,
-				"session_id", cfg.SessionID)
+				"session_id", cfg.SessionID,
+				"resuming", sess.IsResuming)
+
+			startContent := "Starting new session..."
+			initContent := "Initializing AI engine..."
+			if sess.IsResuming {
+				startContent = "Resuming session..."
+				initContent = "Re-initializing AI engine..."
+			}
 
 			if err := callbackSafe("session_start", event.NewEventWithMeta(
 				"session_start",
-				"Starting new session...",
+				startContent,
 				&event.EventMeta{Status: "starting"},
 			)); err != nil {
 				r.logger.Error("Failed to send session_start event", "error", err)
@@ -249,13 +257,13 @@ func (r *Engine) executeWithMultiplex(
 			// Send engine_starting event to indicate CLI is being initialized
 			if err := callbackSafe("engine_starting", event.NewEventWithMeta(
 				"engine_starting",
-				"Initializing AI engine...",
+				initContent,
 				&event.EventMeta{Status: "initializing"},
 			)); err != nil {
 				r.logger.Error("Failed to send engine_starting event", "error", err)
 			}
 		} else {
-			r.logger.Debug("Skipping session_start/engine_starting events",
+			r.logger.Debug("Skipping session_start/engine_starting events (Hot-Multiplexing or no callbackSafe)",
 				"created", created,
 				"callbackSafe", callbackSafe != nil)
 		}

@@ -42,9 +42,10 @@ type Session struct {
 	mu     sync.RWMutex
 	closed bool
 
-	callback Callback
-	logger   *slog.Logger
-	ext      any // Extension payload for consumer packages
+	callback   Callback
+	logger     *slog.Logger
+	ext        any  // Extension payload for consumer packages
+	IsResuming bool // True if session was resumed from persistent marker
 }
 
 // IsAlive checks if the process is still running.

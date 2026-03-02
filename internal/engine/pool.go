@@ -303,6 +303,9 @@ func (sm *SessionPool) startSession(ctx context.Context, sessionID string, cfg S
 		"pid", cmd.Process.Pid,
 		"pgid", cmd.Process.Pid)
 
+	// Check if this was a resume from persistent store
+	isResuming := sm.markerStore.Exists(providerSessionID)
+
 	sess := &Session{
 		ID:                sessionID,
 		ProviderSessionID: providerSessionID,
@@ -319,6 +322,7 @@ func (sm *SessionPool) startSession(ctx context.Context, sessionID string, cfg S
 		TaskInstructions:  cfg.TaskInstructions,
 		statusChange:      make(chan SessionStatus, 10),
 		logger:            sessLog,
+		IsResuming:        isResuming,
 	}
 
 	go sess.ReadStdout()
