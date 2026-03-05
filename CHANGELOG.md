@@ -1,5 +1,24 @@
 # CHANGELOG.md
 
+## [v0.18.3] - 2026-03-05
+
+### 🚀 Processor Chain Optimization & Rune-based Buffering
+
+This release delivers significant architectural refinements to the Processor Chain and implements rune-based (character) counting for correct handling of CJK content in Slack.
+
+### Added
+- **Non-blocking Rate Limiting** - Refactored `RateLimitProcessor` to a non-blocking drop model with new `RateLimitDroppedTotal` Prometheus metric.
+- **Ordering Guards** - Added compile-time static checks to ensure `ZoneOrderProcessor` always runs before `MessageFilterProcessor`.
+
+### Changed
+- **DRY/SOLID Optimization** - Eliminated triple-redundant filtering logic and removed the empty `RichContentProcessor` shell.
+- **Rune-based Counting** - All buffer limits and flush thresholds in `MessageAggregatorProcessor` and `NativeStreamingWriter` are now rune-based (characters) instead of bytes, providing full support for Chinese and multi-byte content.
+- **Config Cleanup** - Removed dead entries from `defaultEventConfig` to improve maintainability.
+
+### Fixed
+- **AppendStream Error Visibility** - Fixed silent error swallowing in Slack streaming; errors are now properly logged with context.
+- **Consistent Naming** - Renamed `MaxBytes` to `MaxRunes` across all configurations, structs, and metrics for semantic consistency.
+
 ## [v0.18.2] - 2026-03-05
 
 ### 🚀 Robust Restart & Slack Assistant Stability
