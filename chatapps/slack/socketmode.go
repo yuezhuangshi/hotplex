@@ -139,7 +139,7 @@ func (a *Adapter) handleAppMentionEvent(ev *slackevents.AppMentionEvent) {
 			"channel_id":   ev.Channel,
 			"channel_type": "channel",
 			"message_ts":   ev.TimeStamp,
-			"thread_ts":    ev.ThreadTimeStamp,
+			"thread_ts":    threadID, // Fallbacks to TimeStamp if ThreadTimeStamp is empty
 		},
 	}
 
@@ -203,14 +203,13 @@ func (a *Adapter) handleSocketModeMessageEvent(ev *slackevents.MessageEvent) {
 
 	if ev.ThreadTimeStamp != "" {
 		msg.Metadata["thread_ts"] = ev.ThreadTimeStamp
+	} else {
+		// Slack Assistant API strictly requires a thread_ts for its endpoints
+		msg.Metadata["thread_ts"] = ev.TimeStamp
 	}
 
 	for k, v := range conversionMetadata {
 		msg.Metadata[k] = v
-	}
-
-	if ev.ThreadTimeStamp != "" {
-		msg.Metadata["thread_ts"] = ev.ThreadTimeStamp
 	}
 
 	a.webhook.Run(a.socketModeCtx, a.Handler(), msg)

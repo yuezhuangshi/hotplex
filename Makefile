@@ -256,7 +256,6 @@ stop: ## @runtime Stop the running daemon
 		printf "${YELLOW}⚠️  No running daemon found${NC}\n"; \
 	fi
 
-	@printf "${YELLOW}🛑 Stopping old daemon (if running)...${NC}\n"
 restart: build ## @runtime Restart daemon with latest source code
 	@mkdir -p $(LOG_DIR)
 	@printf "\n${BOLD}${CYAN}╭─ 🔧 Configuration Files ─────────────────────────────${NC}\n"

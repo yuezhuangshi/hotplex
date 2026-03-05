@@ -1,5 +1,34 @@
 # CHANGELOG.md
 
+## [v0.18.2] - 2026-03-05
+
+### 🚀 Robust Restart & Slack Assistant Stability
+
+This release delivers major improvements to the development workflow with a robust daemon restart mechanism and critical stability fixes for the Slack Assistant API.
+
+### Added
+
+#### Robust Restart Mechanism
+- **Restart Helper Script** - New `scripts/restart_helper.sh` providing a POSIX-compliant, cross-platform process management lifecycle.
+- **Port Cleanup** - Automated waiting for old process termination and port release to prevent "Port already in use" errors during restart.
+- **Atomic Verification** - Explicit validation of the new process PID and Commit ID to ensure the latest code is actually running.
+- **Improved Makefile** - Updated `make restart` and `make stop` targets with better feedback and configuration transparency.
+
+### Fixed
+
+#### Slack Assistant API Stability
+- **Thread Context Enforcement** - Fixed `invalid_arguments` errors in `chat.startStream` and `assistant.threads.setStatus` by ensuring `thread_ts` is always provided.
+- **Automatic Thread Fallback** - Implemented automatic fallback to message `ts` when `thread_ts` is missing, ensuring all top-level interactions correctly initialize as threads.
+- **Socket Mode Consistency** - Unified thread ID extraction across both HTTP Webhooks and Socket Mode events.
+
+### Documentation
+
+- **Dev vs. Prod Restarts** - Clarified the distinction between `make restart` (rebuild & run) and `make service-restart` (system service management) in the Makefile documentation.
+
+---
+
+## [v0.18.1] - 2026-03-05
+
 ## [v0.18.0] - 2026-03-04
 
 ### 🚀 Native Brain & ChatApps Platform Expansion

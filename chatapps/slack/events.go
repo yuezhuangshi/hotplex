@@ -172,6 +172,9 @@ func (a *Adapter) handleEventCallback(ctx context.Context, eventData json.RawMes
 
 	if msgEvent.ThreadTS != "" {
 		msg.Metadata["thread_ts"] = msgEvent.ThreadTS
+	} else {
+		// Slack Assistant API strictly requires a thread_ts for its endpoints
+		msg.Metadata["thread_ts"] = msgEvent.TS
 	}
 
 	if msgEvent.SubType != "" {
