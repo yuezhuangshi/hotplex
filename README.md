@@ -8,6 +8,8 @@
     <a href="https://github.com/hrygo/hotplex/releases"><img src="https://img.shields.io/github/v/release/hrygo/hotplex?style=for-the-badge&logo=go&color=00ADD8" alt="Latest Release"></a>
     <a href="https://goreportcard.com/report/github.com/hrygo/hotplex"><img src="https://goreportcard.com/badge/github.com/hrygo/hotplex?style=for-the-badge" alt="Go Report Card"></a>
     <a href="LICENSE"><img src="https://img.shields.io/github/license/hrygo/hotplex?style=for-the-badge&color=blue" alt="License"></a>
+    <a href="https://github.com/hrygo/hotplex/stargazers"><img src="https://img.shields.io/github/stars/hrygo/hotplex?style=for-the-badge" alt="Stars"></a>
+    <a href="https://github.com/hrygo/hotplex/fork"><img src="https://img.shields.io/github/forks/hrygo/hotplex?style=for-the-badge" alt="Forks"></a>
   </p>
   <p>
     <b>English</b> • <a href="README_zh.md">简体中文</a> • <a href="docs/sdk-guide.md">SDK Guide</a> • <a href="docs/chatapps/slack-setup-beginner.md">Slack Beginner Guide</a> • <a href="https://hrygo.github.io/hotplex/">Docs Site</a>
