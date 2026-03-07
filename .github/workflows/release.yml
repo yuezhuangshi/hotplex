@@ -65,35 +65,45 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/hrygo/hotplex
+          images: ghcr.io/${{ github.repository }}
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest
 
+      # Strip 'v' prefix from tag (v0.21.1 -> 0.21.1)
+      # GoReleaser archives use version without 'v' prefix
+      - name: Prepare version string
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
       - name: Download release assets (linux/amd64)
         uses: robinraju/release-downloader@v1
         with:
-          repository: hrygo/hotplex
+          repository: ${{ github.repository }}
           tag: ${{ github.ref_name }}
-          fileName: "hotplex_${{ github.ref_name }}_linux_amd64.tar.gz"
-          outDir: ./dist/linux_amd64
+          fileName: "hotplex_${{ steps.version.outputs.VERSION }}_linux_amd64.tar.gz"
+          outDir: ./downloads
 
       - name: Download release assets (linux/arm64)
         uses: robinraju/release-downloader@v1
         with:
-          repository: hrygo/hotplex
+          repository: ${{ github.repository }}
           tag: ${{ github.ref_name }}
-          fileName: "hotplex_${{ github.ref_name }}_linux_arm64.tar.gz"
-          outDir: ./dist/linux_arm64
+          fileName: "hotplex_${{ steps.version.outputs.VERSION }}_linux_arm64.tar.gz"
+          outDir: ./downloads
 
       - name: Extract binaries
         env:
-          VERSION: ${{ github.ref_name }}
+          VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
-          mkdir -p dist/linux/amd64 dist/linux/arm64
-          tar -xzf ./dist/linux_amd64/hotplex_${VERSION}_linux_amd64.tar.gz -C dist/linux/amd64
-          tar -xzf ./dist/linux_arm64/hotplex_${VERSION}_linux_arm64.tar.gz -C dist/linux/arm64
+          # Extract to match Dockerfile.release expected path: linux/${TARGETARCH}/hotplexd
+          mkdir -p linux/amd64 linux/arm64
+          tar -xzf ./downloads/hotplex_${VERSION}_linux_amd64.tar.gz -C linux/amd64
+          tar -xzf ./downloads/hotplex_${VERSION}_linux_arm64.tar.gz -C linux/arm64
+          # Verify extraction
+          echo "--- Extracted binaries ---"
+          ls -la linux/amd64/ linux/arm64/
 
       - name: Build and push Docker image
         id: build-push
