@@ -1,5 +1,21 @@
 # CHANGELOG.md
 
+## [v0.21.5] - 2026-03-07
+
+### 🔧 Patch Release
+
+Test release to verify the complete CI/CD pipeline is working correctly.
+
+### Verification
+
+- ✅ YAML syntax fix validated
+- ✅ release-downloader parameter fix validated
+- ✅ CHANGELOG.md extraction working
+- ✅ Docker multi-platform build working
+
+### Reference Commits
+- test: verify release workflow end-to-end
+
 ## [v0.21.4] - 2026-03-07
 
 ### 🔧 Patch Release
