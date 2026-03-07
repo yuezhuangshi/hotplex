@@ -83,7 +83,7 @@ jobs:
           repository: ${{ github.repository }}
           tag: ${{ github.ref_name }}
           fileName: "hotplex_${{ steps.version.outputs.VERSION }}_linux_amd64.tar.gz"
-          outDir: ./downloads
+          out-file-path: ./downloads
 
       - name: Download release assets (linux/arm64)
         uses: robinraju/release-downloader@v1
@@ -91,7 +91,7 @@ jobs:
           repository: ${{ github.repository }}
           tag: ${{ github.ref_name }}
           fileName: "hotplex_${{ steps.version.outputs.VERSION }}_linux_arm64.tar.gz"
-          outDir: ./downloads
+          out-file-path: ./downloads
 
       - name: Extract binaries
         env:

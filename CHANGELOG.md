@@ -1,5 +1,18 @@
 # CHANGELOG.md
 
+## [v0.21.4] - 2026-03-07
+
+### 🔧 Patch Release
+
+This release fixes the release workflow download step parameter name change.
+
+### Fixed
+
+- **Download Path** - Fixed `robinraju/release-downloader@v1` parameter name (`outDir` → `out-file-path`)
+
+### Reference Commits
+- fix(ci): update release-downloader parameter name
+
 ## [v0.21.3] - 2026-03-07
 
 ### 🔧 Patch Release
