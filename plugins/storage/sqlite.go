@@ -38,7 +38,7 @@ func (s *SQLiteStorage) Initialize(ctx context.Context) error {
 	// Expand home directory tilde
 	path = sys.ExpandPath(path)
 
-	db, err := sql.Open("sqlite3", path)
+	db, err := sql.Open("sqlite", path)
 	if err != nil {
 		return err
 	}
