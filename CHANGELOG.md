@@ -1,5 +1,23 @@
 # CHANGELOG.md
 
+## [v0.23.2] - 2026-03-08
+
+### 🔧 Patch Release
+
+This release fixes stale session markers and Docker build metadata.
+
+### Fixed
+
+#### 🔄 Session Resume Failure Handling
+- **Stale Marker Cleanup** - Delete session marker when resume fails with "No conversation found"
+- **Auto-Recovery** - Next request creates fresh session instead of retrying with dead session
+
+#### 🐳 Docker Build Metadata
+- **Version Embedding** - Pass COMMIT and BUILD_TIME to docker build for proper version info
+- **Fix** - `hotplexd --version` now shows correct commit and build time instead of "unknown"
+
+---
+
 ## [v0.23.0] - 2026-03-08
 
 ### 🚀 Minor Release
