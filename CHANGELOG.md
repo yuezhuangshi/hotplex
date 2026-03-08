@@ -1,5 +1,54 @@
 # CHANGELOG.md
 
+## [v0.23.0] - 2026-03-08
+
+### 🚀 Minor Release
+
+This release introduces Docker container isolation, config layer refactoring, and Phase 1 bot behavior implementation.
+
+### Added
+
+#### 🐳 Docker Container Isolation
+- **docker-entrypoint.sh** - New entrypoint script for container initialization
+  - Auto-creates `.claude.json` on container start
+  - Enables per-container config isolation (no host file mounting needed)
+- **ENTRYPOINT + CMD Pattern** - Flexible container startup with exec signal handling
+
+#### ⚙️ Config Layer Refactoring
+- **Code-Level Defaults** - Slack config now falls back to sensible defaults in Go code
+- **Environment Variable Overrides** - Preserved and prioritized over config file values
+- **Multi-Bot Support** - Provider factory improvements for running multiple bots
+
+#### 🤖 Phase 1 Bot Behavior Spec (#242)
+- **Thread Ownership** - Bot only responds in threads it owns (started by mentioning bot)
+- **Thread Recycling** - Reuse existing threads for follow-up messages
+- **Implicit Acknowledgment** - Skip "thinking" indicator for quick responses
+- **Context Preservation** - Maintain conversation context within owned threads
+
+#### 📦 Storage Plugin Enhancement
+- **SOLID Compliance** - Refactored for better separation of concerns
+- **Reliability Improvements** - Enhanced error handling and state management
+
+#### 📊 Bot Logging
+- **Container Mining** - Enhanced bot logging for debugging containerized sessions
+- **Session Log Persistence** - Write session logs to files for post-mortem analysis
+
+### Fixed
+
+#### 🐳 Docker
+- **Comment Markers** - Removed corrupted comment markers in docker-compose.yml
+- **Claude Code Installation** - Use npm instead of curl for reliable installation
+
+#### 💬 Commands
+- **UI Feedback** - Ensure proper feedback on `/reset` error paths
+- **Event Emission** - Add missing `Emit` calls for `/dc` command
+- **User Messages** - Improved reset/disconnect message clarity
+
+### Docs
+- **ChatApps Slack Manual** - Added comprehensive documentation (EN/ZH)
+
+---
+
 ## [v0.22.2] - 2026-03-08
 
 ### 🔧 Patch Release
