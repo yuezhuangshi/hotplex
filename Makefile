@@ -168,6 +168,15 @@ test-integration: ## @test Run heavy integration tests
 
 test-all: test-race test-integration ## @test Run all tests
 
+coverage: ## @test Generate coverage report
+	@printf "${CYAN}📊 Generating coverage report...${NC}\n"
+	@go test -coverprofile=coverage.out -covermode=atomic ./...
+	@printf "${GREEN}✅ Coverage report generated: coverage.out${NC}\n"
+
+coverage-html: coverage ## @test Generate coverage HTML report
+	@go tool cover -html=coverage.out -o coverage.html
+	@printf "${GREEN}✅ Coverage HTML report: coverage.html${NC}\n"
+
 # =============================================================================
 # 🔧 DEVELOPMENT
 # =============================================================================
