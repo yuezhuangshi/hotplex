@@ -52,6 +52,15 @@ if [ -n "${GIT_USER_EMAIL:-}" ]; then
     run_as_hotplex git config --global user.email "$GIT_USER_EMAIL"
 fi
 
+# Auto-configure safe.directory for mounted project volumes
+if [ -d "$HOTPLEX_HOME/projects" ]; then
+    run_as_hotplex git config --global --add safe.directory "$HOTPLEX_HOME/projects" || true
+    # Also add all first-level subdirectories (cloned repos)
+    for d in "$HOTPLEX_HOME/projects"/*/; do
+        [ -d "$d/.git" ] && run_as_hotplex git config --global --add safe.directory "$d" || true
+    done
+fi
+
 # ------------------------------------------------------------------------------
 # 4. Execute CMD (drop privileges if root)
 #    Ensures all files created by the app belong to 'hotplex' user

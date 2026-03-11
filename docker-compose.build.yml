@@ -21,5 +21,11 @@ services:
         VERSION: ${VERSION:-dev}
         COMMIT: ${COMMIT:-unknown}
         BUILD_TIME: ${BUILD_TIME:-unknown}
-        HTTP_PROXY: ${HTTP_PROXY:-}
-        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        HTTP_PROXY: ${HTTP_PROXY:-http://host.docker.internal:7897}
+        HTTPS_PROXY: ${HTTPS_PROXY:-http://host.docker.internal:7897}
+        ALPINE_MIRROR: ${ALPINE_MIRROR:-mirrors.aliyun.com}
+        NPM_MIRROR: ${NPM_MIRROR:-https://registry.npmmirror.com}
+        PYTHON_MIRROR: ${PYTHON_MIRROR:-https://pypi.tuna.tsinghua.edu.cn/simple}
+        GOPROXY: ${GOPROXY:-https://goproxy.cn,direct}
+        RUSTUP_DIST_SERVER: ${RUSTUP_DIST_SERVER:-https://rsproxy.cn}
+        GITHUB_PROXY: ${GITHUB_PROXY:-https://mirror.ghproxy.com/}

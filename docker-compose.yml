@@ -121,6 +121,11 @@ x-hotplex-common: &hotplex-common
     HTTP_PROXY: http://host.docker.internal:7897
     HTTPS_PROXY: http://host.docker.internal:7897
     NO_PROXY: localhost,127.0.0.1,host.docker.internal
+    # ─────────────────────────────────────────────────────────────────
+    # Git Identity Defaults
+    # ─────────────────────────────────────────────────────────────────
+    GIT_USER_NAME: ${GIT_USER_NAME:-HotPlexBot}
+    GIT_USER_EMAIL: ${GIT_USER_EMAIL:-noreply@hotplex.dev}
   extra_hosts:
     - "host.docker.internal:host-gateway" # Allows container to reach host
   # ─────────────────────────────────────────────────────────────────
@@ -186,7 +191,6 @@ services:
       - hotplex-go-build:/home/hotplex/.cache/go-build:rw # Go build cache
       # Bot-specific volumes (MUST be unique per bot - no variables!)
       - ${HOME}/.slack/BOT_U0AHRCL1KCM:/home/hotplex/projects:rw
-      - ${HOME}/.gitconfig-hotplex:/home/hotplex/.gitconfig:ro
     labels:
       - "hotplex.bot.role=primary"
       - "hotplex.bot.config=.env"
@@ -215,7 +219,6 @@ services:
       - hotplex-go-build:/home/hotplex/.cache/go-build:rw
       # Bot-specific volumes (MUST be unique per bot - no variables!)
       - ${HOME}/.slack/BOT_U0AJVRH4YF6:/home/hotplex/projects:rw
-      - ${HOME}/.gitconfig-hotplex-secondary:/home/hotplex/.gitconfig:ro
     labels:
       - "hotplex.bot.role=secondary"
       - "hotplex.bot.config=.env.secondary"

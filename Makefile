@@ -440,17 +440,56 @@ docker-clean:
 
 STACK_TAG ?= latest
 
+# 代理与源配置 (Defaults provided, optimized for mainland China, can be overridden by env)
+HTTP_PROXY       ?= http://host.docker.internal:7897
+HTTPS_PROXY      ?= http://host.docker.internal:7897
+ALPINE_MIRROR    ?= mirrors.aliyun.com
+NPM_MIRROR       ?= https://registry.npmmirror.com
+PYTHON_MIRROR    ?= https://pypi.tuna.tsinghua.edu.cn/simple
+GOPROXY          ?= https://goproxy.cn,direct
+RUSTUP_DIST_SERVER ?= https://rsproxy.cn
+GITHUB_PROXY     ?= https://mirror.ghproxy.com/
+
+# 统一构建参数
+DOCKER_BUILD_COMMON_ARGS := --build-arg HOST_UID=$(HOST_UID) \
+                            --build-arg VERSION=$(VERSION) \
+                            --build-arg COMMIT=$(COMMIT) \
+                            --build-arg BUILD_TIME=$(BUILD_TIME)
+
+DOCKER_BUILD_PROXY_ARGS := --build-arg HTTP_PROXY=$(HTTP_PROXY) \
+                           --build-arg HTTPS_PROXY=$(HTTPS_PROXY) \
+                           --build-arg ALPINE_MIRROR=$(ALPINE_MIRROR) \
+                           --build-arg NPM_MIRROR=$(NPM_MIRROR) \
+                           --build-arg PYTHON_MIRROR=$(PYTHON_MIRROR) \
+                           --build-arg GOPROXY=$(GOPROXY) \
+                           --build-arg RUSTUP_DIST_SERVER=$(RUSTUP_DIST_SERVER) \
+                           --build-arg GITHUB_PROXY=$(GITHUB_PROXY)
+
+# DRY 构建函数
+define do_stack_build
+	@printf "${CYAN}🔨 Building HotPlex + $(1) stack...${NC}\n"
+	docker build -f docker/Dockerfile.$(1) \
+		$(DOCKER_BUILD_COMMON_ARGS) \
+		$(DOCKER_BUILD_PROXY_ARGS) \
+		-t hotplex:$(1) \
+		$(if $(2),-t hotplex:$(1)-$(2),) \
+		.
+	@printf "${GREEN}✅ Built hotplex:$(1)${NC}\n"
+endef
+
 stack-go: ## @docker Build HotPlex + Go (default, same as release)
-	@printf "${CYAN}🔨 Building HotPlex + Go stack...${NC}\n"
-	docker build -f docker/Dockerfile.release \
-		--build-arg HOST_UID=$(HOST_UID) \
-		--build-arg VERSION=$(VERSION) \
-		--build-arg COMMIT=$(COMMIT) \
-		--build-arg BUILD_TIME=$(BUILD_TIME) \
-		-t hotplex:go -t hotplex:go-1.26 .
-	@printf "${GREEN}✅ Built hotplex:go${NC}\n"
+	@printf "${CYAN}🔨 Building HotPlex + Go stack (Default)...${NC}\n"
+	docker build -f docker/Dockerfile \
+		$(DOCKER_BUILD_COMMON_ARGS) \
+		$(DOCKER_BUILD_PROXY_ARGS) \
+		-t hotplex:$(STACK_TAG) \
+		-t hotplex:go \
+		-t hotplex:go-1.26 \
+		.
+	@printf "${GREEN}✅ Built hotplex:go (hotplex:$(STACK_TAG))${NC}\n"
 
 stack-node: ## @docker Build HotPlex + Node.js/TypeScript stack
+	$(call do_stack_build,node,24)
 	@printf "${CYAN}🔨 Building HotPlex + Node stack...${NC}\n"
 	docker build -f docker/Dockerfile.node \
 		--build-arg HOST_UID=$(HOST_UID) \
@@ -461,44 +500,16 @@ stack-node: ## @docker Build HotPlex + Node.js/TypeScript stack
 	@printf "${GREEN}✅ Built hotplex:node${NC}\n"
 
 stack-python: ## @docker Build HotPlex + Python stack
-	@printf "${CYAN}🔨 Building HotPlex + Python stack...${NC}\n"
-	docker build -f docker/Dockerfile.python \
-		--build-arg HOST_UID=$(HOST_UID) \
-		--build-arg VERSION=$(VERSION) \
-		--build-arg COMMIT=$(COMMIT) \
-		--build-arg BUILD_TIME=$(BUILD_TIME) \
-		-t hotplex:python -t hotplex:python-3.14 .
-	@printf "${GREEN}✅ Built hotplex:python${NC}\n"
+	$(call do_stack_build,python,3.14)
 
 stack-java: ## @docker Build HotPlex + Java/Kotlin stack
-	@printf "${CYAN}🔨 Building HotPlex + Java stack...${NC}\n"
-	docker build -f docker/Dockerfile.java \
-		--build-arg HOST_UID=$(HOST_UID) \
-		--build-arg VERSION=$(VERSION) \
-		--build-arg COMMIT=$(COMMIT) \
-		--build-arg BUILD_TIME=$(BUILD_TIME) \
-		-t hotplex:java -t hotplex:java-21 .
-	@printf "${GREEN}✅ Built hotplex:java${NC}\n"
+	$(call do_stack_build,java,21)
 
 stack-rust: ## @docker Build HotPlex + Rust stack
-	@printf "${CYAN}🔨 Building HotPlex + Rust stack...${NC}\n"
-	docker build -f docker/Dockerfile.rust \
-		--build-arg HOST_UID=$(HOST_UID) \
-		--build-arg VERSION=$(VERSION) \
-		--build-arg COMMIT=$(COMMIT) \
-		--build-arg BUILD_TIME=$(BUILD_TIME) \
-		-t hotplex:rust -t hotplex:rust-1.94 .
-	@printf "${GREEN}✅ Built hotplex:rust${NC}\n"
+	$(call do_stack_build,rust,1.94)
 
 stack-full: ## @docker Build HotPlex + Full stack (all tech stacks)
-	@printf "${CYAN}🔨 Building HotPlex + Full stack...${NC}\n"
-	docker build -f docker/Dockerfile.full \
-		--build-arg HOST_UID=$(HOST_UID) \
-		--build-arg VERSION=$(VERSION) \
-		--build-arg COMMIT=$(COMMIT) \
-		--build-arg BUILD_TIME=$(BUILD_TIME) \
-		-t hotplex:full -t hotplex:$(STACK_TAG) .
-	@printf "${GREEN}✅ Built hotplex:full${NC}\n"
+	$(call do_stack_build,full,$(STACK_TAG))
 
 stack-all: stack-go stack-node stack-python stack-java stack-rust stack-full ## @docker Build all stack images
 	@echo ""

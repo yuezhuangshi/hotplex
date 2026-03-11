@@ -12,30 +12,42 @@ ARG COMMIT=unknown
 ARG BUILD_TIME=unknown
 ARG HTTP_PROXY
 ARG HTTPS_PROXY
+ARG GOPROXY=https://goproxy.cn,direct
+ARG ALPINE_MIRROR=dl-cdn.alpinelinux.org
 
 WORKDIR /build
 COPY go.mod go.sum ./
-RUN go mod download && go mod verify
+RUN if [ "$ALPINE_MIRROR" != "dl-cdn.alpinelinux.org" ]; then \
+        sed -i "s/dl-cdn.alpinelinux.org/$ALPINE_MIRROR/g" /etc/apk/repositories; \
+    fi && \
+    go env -w GOPROXY=$GOPROXY && \
+    go mod download && go mod verify
 
 COPY . .
 RUN CGO_ENABLED=0 go build \
     -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${BUILD_TIME} -X main.builtBy=docker" \
     -o hotplexd ./cmd/hotplexd
 
-# --- Stage 2: Base Runtime ---
 FROM golang:1.25-alpine AS base
 
 ARG HTTP_PROXY
 ARG HTTPS_PROXY
+ARG GOPROXY=https://goproxy.cn,direct
+ARG ALPINE_MIRROR=dl-cdn.alpinelinux.org
+ARG NPM_MIRROR
+ARG GITHUB_PROXY
 
 WORKDIR /app
 
 # System packages (Common to all stacks)
-RUN apk add --no-cache \
+RUN if [ "$ALPINE_MIRROR" != "dl-cdn.alpinelinux.org" ]; then \
+        sed -i "s/dl-cdn.alpinelinux.org/$ALPINE_MIRROR/g" /etc/apk/repositories; \
+    fi && \
+    apk add --no-cache \
     # Version control
     git github-cli \
     # Build tools
-    make bash cmake gcc g++ musl-dev \
+    make bash cmake gcc g++ musl-dev binutils \
     # Modern file tools (Claude Code recommended)
     ripgrep fd bat fzf eza \
     # Network debugging
@@ -60,27 +72,31 @@ RUN apk add --no-cache \
     ca-certificates
 
 # --- Stage 3: Go tools ---
-RUN go install github.com/air-verse/air@latest && \
+RUN go env -w GOPROXY=$GOPROXY && \
+    go install github.com/air-verse/air@latest && \
     go install github.com/go-delve/delve/cmd/dlv@latest && \
     go install golang.org/x/tools/cmd/goimports@latest && \
     go install mvdan.cc/gofumpt@latest && \
     go install honnef.co/go/tools/cmd/staticcheck@latest && \
     go install github.com/securego/gosec/v2/cmd/gosec@latest && \
     go install golang.org/x/vuln/cmd/govulncheck@latest && \
-    go install github.com/golang/mock/mockgen@latest && \
+    go install go.uber.org/mock/mockgen@latest && \
     go install gotest.tools/gotestsum@latest && \
-    go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest && \
+    curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.64.5 && \
     go clean -cache -modcache
 
 # --- Stage 4: Third-party tools & Claude Code ---
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "x86_64" ]; then ARCH="x86_64"; \
     elif [ "$ARCH" = "aarch64" ]; then ARCH="aarch64"; fi && \
-    wget -qO /usr/local/bin/websocat \
-    "https://github.com/vi/websocat/releases/download/v1.14.1/websocat.${ARCH}-unknown-linux-musl" && \
+    wget -qO /usr/local/bin/websocat -t 3 \
+    "${GITHUB_PROXY}https://github.com/vi/websocat/releases/download/v1.14.1/websocat.${ARCH}-unknown-linux-musl" && \
     chmod +x /usr/local/bin/websocat
 
-RUN npm install -g @anthropic-ai/claude-code@latest && \
+RUN if [ -n "$NPM_MIRROR" ]; then \
+        npm config set registry "$NPM_MIRROR"; \
+    fi && \
+    npm install -g @anthropic-ai/claude-code@latest --fetch-retries=3 --fetch-retry-mintimeout=2000 && \
     npm cache clean --force
 
 # --- Stage 5: Final Base Assembly ---

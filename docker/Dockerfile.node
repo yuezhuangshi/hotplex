@@ -6,14 +6,23 @@ ARG BASE_IMAGE=hotplex:base
 FROM ${BASE_IMAGE}
 
 USER root
+ARG ALPINE_MIRROR=dl-cdn.alpinelinux.org
+ARG NPM_MIRROR
 
 # ============================================
 # Node.js Stack Extensions
 # ============================================
 # Package managers
-RUN corepack enable && \
+RUN if [ "$ALPINE_MIRROR" != "dl-cdn.alpinelinux.org" ]; then \
+        sed -i "s/dl-cdn.alpinelinux.org/$ALPINE_MIRROR/g" /etc/apk/repositories; \
+    fi && \
+    corepack enable && \
     corepack prepare pnpm@latest --activate && \
-    corepack prepare yarn@stable --activate
+    corepack prepare yarn@stable --activate && \
+    if [ -n "$NPM_MIRROR" ]; then \
+        npm config set registry "$NPM_MIRROR" && \
+        pnpm config set registry "$NPM_MIRROR"; \
+    fi
 
 # Bun (ultra-fast runtime)
 RUN curl -fsSL https://bun.sh/install | bash

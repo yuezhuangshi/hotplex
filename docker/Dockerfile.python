@@ -6,11 +6,16 @@ ARG BASE_IMAGE=hotplex:base
 FROM ${BASE_IMAGE}
 
 USER root
+ARG ALPINE_MIRROR=dl-cdn.alpinelinux.org
+ARG PYTHON_MIRROR
 
 # ============================================
 # Python Stack Extensions
 # ============================================
-RUN apk add --no-cache \
+RUN if [ "$ALPINE_MIRROR" != "dl-cdn.alpinelinux.org" ]; then \
+        sed -i "s/dl-cdn.alpinelinux.org/$ALPINE_MIRROR/g" /etc/apk/repositories; \
+    fi && \
+    apk add --no-cache \
     py3-pip \
     py3-venv \
     libffi-dev \
@@ -18,7 +23,10 @@ RUN apk add --no-cache \
     postgresql-dev \
     sqlite-dev
 
-RUN pip3 install --upgrade pip setuptools wheel --break-system-packages
+RUN if [ -n "$PYTHON_MIRROR" ]; then \
+        pip3 config set global.index-url "$PYTHON_MIRROR"; \
+    fi && \
+    pip3 install --upgrade pip setuptools wheel --break-system-packages
 
 # Package managers & Dev tools
 RUN pip3 install --break-system-packages \

@@ -81,7 +81,7 @@ export HOTPLEX_SLACK_APP_TOKEN=xapp-...
 | 📦 **Go SDK** | 零开销直接嵌入 Go 应用 |
 | 🔌 **WebSocket 网关** | 通过 `hotplexd` 守护进程实现语言无关访问 |
 | 📊 **OpenTelemetry** | 内置指标和追踪支持 |
-| 🐳 **Docker 支持** | 一条命令运行多个隔离机器人 |
+| 🐳 **Docker 1+n 架构** | 1 个基础镜像 + n 个语言栈 (`node`, `python`, `java`, `rust`, `full`) |
 
 ---
 

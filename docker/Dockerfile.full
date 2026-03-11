@@ -6,15 +6,27 @@ ARG BASE_IMAGE=hotplex:base
 FROM ${BASE_IMAGE}
 
 USER root
+ARG ALPINE_MIRROR=dl-cdn.alpinelinux.org
+ARG NPM_MIRROR
+ARG PYTHON_MIRROR
+ARG RUSTUP_DIST_SERVER=https://rsproxy.cn
+ARG RUSTUP_UPDATE_ROOT=https://rsproxy.cn/rustup
 
 # ============================================
 # Combined Tech Stacks
 # ============================================
 
 # 1. Node.js Stack
-RUN corepack enable && \
+RUN if [ "$ALPINE_MIRROR" != "dl-cdn.alpinelinux.org" ]; then \
+        sed -i "s/dl-cdn.alpinelinux.org/$ALPINE_MIRROR/g" /etc/apk/repositories; \
+    fi && \
+    corepack enable && \
     corepack prepare pnpm@latest --activate && \
     corepack prepare yarn@stable --activate && \
+    if [ -n "$NPM_MIRROR" ]; then \
+        npm config set registry "$NPM_MIRROR" && \
+        pnpm config set registry "$NPM_MIRROR"; \
+    fi && \
     curl -fsSL https://bun.sh/install | bash && \
     npm install -g typescript ts-node tsx eslint prettier @biomejs/biome jest vitest esbuild @nestjs/cli nodemon pm2 && \
     npm cache clean --force
@@ -22,6 +34,9 @@ ENV BUN_INSTALL="/home/hotplex/.bun"
 
 # 2. Python Stack
 RUN apk add --no-cache py3-pip py3-venv libffi-dev openssl-dev postgresql-dev sqlite-dev && \
+    if [ -n "$PYTHON_MIRROR" ]; then \
+        pip3 config set global.index-url "$PYTHON_MIRROR"; \
+    fi && \
     pip3 install --upgrade pip setuptools wheel --break-system-packages && \
     pip3 install --break-system-packages poetry uv pipx ruff black isort mypy pytest ipython fastapi uvicorn httpx && \
     rm -rf /root/.cache/pip
@@ -32,6 +47,19 @@ ENV CARGO_HOME=/usr/local/cargo
 ENV PATH="${CARGO_HOME}/bin:${PATH}"
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
     rustup component add clippy rustfmt rust-analyzer rust-src && \
+    if [ "$RUSTUP_DIST_SERVER" = "https://rsproxy.cn" ]; then \
+        mkdir -p ${CARGO_HOME} && \
+        echo '[source.crates-io]' > ${CARGO_HOME}/config.toml && \
+        echo 'replace-with = "rsproxy-sparse"' >> ${CARGO_HOME}/config.toml && \
+        echo '[source.rsproxy]' >> ${CARGO_HOME}/config.toml && \
+        echo 'registry = "https://rsproxy.cn/crates.io-index"' >> ${CARGO_HOME}/config.toml && \
+        echo '[source.rsproxy-sparse]' >> ${CARGO_HOME}/config.toml && \
+        echo 'registry = "sparse+https://rsproxy.cn/index/"' >> ${CARGO_HOME}/config.toml && \
+        echo '[registries.rsproxy]' >> ${CARGO_HOME}/config.toml && \
+        echo 'index = "https://rsproxy.cn/crates.io-index"' >> ${CARGO_HOME}/config.toml && \
+        echo '[net]' >> ${CARGO_HOME}/config.toml && \
+        echo 'git-fetch-with-cli = true' >> ${CARGO_HOME}/config.toml; \
+    fi && \
     cargo install cargo-watch cargo-nextest trunk && \
     rm -rf ${CARGO_HOME}/registry
 

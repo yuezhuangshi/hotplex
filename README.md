@@ -80,7 +80,7 @@ export HOTPLEX_SLACK_APP_TOKEN=xapp-...
 | 📦 **Go SDK** | Embed directly in your Go app with zero overhead |
 | 🔌 **WebSocket Gateway** | Language-agnostic access via `hotplexd` daemon |
 | 📊 **OpenTelemetry** | Built-in metrics and tracing support |
-| 🐳 **Docker Ready** | Run multiple isolated bots with one command |
+| 🐳 **Docker 1+n** | 1 Base + n Stacks (`node`, `python`, `java`, `rust`, `full`) |
 
 ---
 

@@ -6,11 +6,15 @@ ARG BASE_IMAGE=hotplex:base
 FROM ${BASE_IMAGE}
 
 USER root
+ARG ALPINE_MIRROR=dl-cdn.alpinelinux.org
 
 # ============================================
 # Java/Kotlin Stack Extensions
 # ============================================
-RUN apk add --no-cache \
+RUN if [ "$ALPINE_MIRROR" != "dl-cdn.alpinelinux.org" ]; then \
+        sed -i "s/dl-cdn.alpinelinux.org/$ALPINE_MIRROR/g" /etc/apk/repositories; \
+    fi && \
+    apk add --no-cache \
     openjdk25 \
     fontconfig \
     ttf-dejavu
