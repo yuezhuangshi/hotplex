@@ -207,6 +207,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           build-contexts: |
             hotplex:artifacts=docker-image://${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name }}:artifacts
+            hotplex:base=docker-image://${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name }}:base
           # ... build contexts ...
           build-args: |
             VERSION=${{ needs.prepare.outputs.version }}
