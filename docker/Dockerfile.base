@@ -39,7 +39,7 @@ RUN if [ "$DEBIAN_MIRROR" != "deb.debian.org" ] && [ -n "$DEBIAN_MIRROR" ]; then
     fi && \
     apt-get update && apt-get install -y --no-install-recommends \
     curl wget ca-certificates git make bash jq gettext-base \
-    procps netcat-openbsd openssl libatomic1 unzip \
+    procps netcat-openbsd openssl libatomic1 unzip gnupg \
     python3 python3-pip python3-venv \
     && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && apt-get install -y nodejs \
@@ -57,8 +57,8 @@ RUN gh_install_version="2.63.0" && \
     rm -rf /tmp/gh_${gh_install_version}_linux_${gh_arch}
     
 # Install uv (Python), bun & pnpm (Node)
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh && mv /root/.local/bin/uv /usr/local/bin/uv && \
-    npm install -g pnpm@latest bun@latest && \
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+RUN npm install -g pnpm@latest bun@latest && \
     npm cache clean --force
 
 # Install trivy (Security) & lazygit (DX)
@@ -84,8 +84,12 @@ RUN useradd -m -u ${HOST_UID} -s /bin/bash hotplex && \
 
 # 3. Static Tool Injection
 COPY --from=tools-collector /usr/local/bin/websocat /usr/local/bin/websocat
+# Injection from npm-tools-collector (Claude Code, etc.)
 COPY --from=npm-tools-collector /usr/local/lib/node_modules/ /usr/local/lib/node_modules/
-COPY --from=npm-tools-collector /usr/local/bin/ /usr/local/bin/
+# Link binaries manually to avoid overwriting /usr/local/bin
+RUN ln -s /usr/local/lib/node_modules/@anthropic-ai/claude-code/bin/claude /usr/local/bin/claude && \
+    ln -s /usr/local/lib/node_modules/opencode-ai/bin/opencode /usr/local/bin/opencode && \
+    ln -s /usr/local/lib/node_modules/@mariozechner/pi-coding-agent/bin/pi /usr/local/bin/pi
 
 # 4. Standard Metadata & Entrypoint
 WORKDIR /app
