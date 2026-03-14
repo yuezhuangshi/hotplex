@@ -1,5 +1,16 @@
 # CHANGELOG.md
 
+## [v0.27.3] - 2026-03-14
+
+### Fixed
+- **Docker Symlink Resolution** - Fixed container crash loop caused by hardcoded binary paths:
+  - Replaced manual `ln -s` with npm-generated symlinks for CLI tools
+  - Fixed `claude` binary path (`bin/claude` → `cli.js`)
+  - Fixed `pi` binary path (`bin/pi` → `dist/cli.js`)
+  - Future-proof: now auto-adapts to package.json `bin` field changes
+
+---
+
 ## [v0.27.2] - 2026-03-14
 
 ### Changed
