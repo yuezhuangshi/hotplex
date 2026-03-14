@@ -123,16 +123,12 @@ USER hotplex
 WORKDIR /home/hotplex
 
 # protoc-gen-go and protoc-gen-go-grpc (small, use go install)
-RUN --mount=type=cache,target=/home/hotplex/.cache/go-build,uid=1000 \
-    --mount=type=cache,target=/home/hotplex/go/pkg/mod,uid=1000 \
-    go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \
     go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
 # delve - Go debugger (no pre-built binaries, use go install)
 # govulncheck - Go vulnerability checker (no pre-built binaries, use go install)
-RUN --mount=type=cache,target=/home/hotplex/.cache/go-build,uid=1000 \
-    --mount=type=cache,target=/home/hotplex/go/pkg/mod,uid=1000 \
-    go install github.com/go-delve/delve/cmd/dlv@latest && \
+RUN go install github.com/go-delve/delve/cmd/dlv@latest && \
     go install golang.org/x/vuln/cmd/govulncheck@latest
 
 # ==============================================================================
