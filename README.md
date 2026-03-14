@@ -162,6 +162,7 @@ type ChatAdapter interface {
     // Unified message format
     SendMessage(msg *ChatMessage) error
 }
+```
 
 ### MessageOperations (Optional)
 

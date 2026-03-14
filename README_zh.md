@@ -177,6 +177,7 @@ type MessageOperations interface {
     UpdateMessage(ctx, channelID, messageTS, msg) error
     DeleteMessage(ctx, channelID, messageTS) error
 }
+```
 
 ---
 
