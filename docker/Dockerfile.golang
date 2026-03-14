@@ -49,9 +49,11 @@ RUN ARCH=$(cat /tmp/arch) && \
     rm -rf /tmp/golangci-lint-*
 
 # goreleaser (Binary: ~20MB vs go install: ~200MB)
+# Note: goreleaser uses "Linux" (capitalized) and "x86_64" instead of "amd64"
 RUN ARCH=$(cat /tmp/arch) && \
+    GOARCH=$([ "$ARCH" = "amd64" ] && echo "x86_64" || echo "$ARCH") && \
     GORELEASER_VERSION="2.14.3" && \
-    curl -sSfL "https://github.com/goreleaser/goreleaser/releases/download/v${GORELEASER_VERSION}/goreleaser_${GORELEASER_VERSION}_linux_${ARCH}.tar.gz" | \
+    curl -sSfL "https://github.com/goreleaser/goreleaser/releases/download/v${GORELEASER_VERSION}/goreleaser_Linux_${GOARCH}.tar.gz" | \
     tar xz -C /usr/local/bin goreleaser
 
 # buf (Binary: ~25MB vs go install: ~100MB)
