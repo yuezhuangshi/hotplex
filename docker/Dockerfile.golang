@@ -81,7 +81,7 @@ RUN ARCH=$(cat /tmp/arch) && \
 # gotestsum - Go test runner (Binary: ~5MB)
 RUN ARCH=$(cat /tmp/arch) && \
     GOTESTSUM_VERSION="1.12.1" && \
-    curl -sSfL "https://github.com/gotestyourcode/gotestsum/releases/download/v${GOTESTSUM_VERSION}/gotestsum_${GOTESTSUM_VERSION}_linux_${ARCH}.tar.gz" | \
+    curl -sSfL "https://github.com/gotestyourself/gotestsum/releases/download/v${GOTESTSUM_VERSION}/gotestsum_${GOTESTSUM_VERSION}_linux_${ARCH}.tar.gz" | \
     tar xz -C /usr/local/bin gotestsum
 
 # swag - Swagger generator (Binary: ~10MB)
