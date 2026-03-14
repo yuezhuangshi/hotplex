@@ -50,7 +50,7 @@ RUN ARCH=$(cat /tmp/arch) && \
 
 # goreleaser (Binary: ~20MB vs go install: ~200MB)
 RUN ARCH=$(cat /tmp/arch) && \
-    GORELEASER_VERSION="2.7.0" && \
+    GORELEASER_VERSION="2.14.3" && \
     curl -sSfL "https://github.com/goreleaser/goreleaser/releases/download/v${GORELEASER_VERSION}/goreleaser_${GORELEASER_VERSION}_linux_${ARCH}.tar.gz" | \
     tar xz -C /usr/local/bin goreleaser
 
