@@ -37,7 +37,11 @@ RUN if [ -n "$GOPROXY" ]; then go env -w GOPROXY=$GOPROXY; fi && \
 # Selective Python SDK injection to avoid shadowing Go/Base tools
 COPY --from=python-sdk /usr/local/bin/python* /usr/local/bin/
 COPY --from=python-sdk /usr/local/bin/pip* /usr/local/bin/
+COPY --from=python-sdk /usr/local/bin/2to3* /usr/local/bin/
+COPY --from=python-sdk /usr/local/bin/idle* /usr/local/bin/
+COPY --from=python-sdk /usr/local/bin/pydoc* /usr/local/bin/
 COPY --from=python-sdk /usr/local/lib/python3.14 /usr/local/lib/python3.14
+COPY --from=python-sdk /usr/local/lib/libpython3.14* /usr/local/lib/
 COPY --from=python-sdk /usr/local/include/python3.14 /usr/local/include/python3.14
 RUN ldconfig
 
@@ -61,6 +65,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # ==============================================================================
 COPY --from=binary-provider /hotplexd /usr/local/bin/hotplexd
 # ==============================================================================
+
+# Sanity Check: Ensure Base Tools and SDKs are all functional
+RUN python3 --version && node --version && uv --version && gh --version && \
+    go version && rustc --version && java -version && \
+    /usr/local/bin/hotplexd --version
 
 USER hotplex
 WORKDIR /app
