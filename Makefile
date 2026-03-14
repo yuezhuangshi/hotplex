@@ -26,14 +26,18 @@ HOST_CONFIGS_DIR := $(if $(HOTPLEX_HOST_CONFIGS_DIR),$(HOTPLEX_HOST_CONFIGS_DIR)
 export HOME := $(HOME_DIR)
 
 # Check shell environment on Windows - require POSIX shell
+# Valid POSIX shells on Windows: Git Bash, MSYS2, MinGW, WSL, Cygwin
 ifeq ($(OS),Windows_NT)
-    ifeq ($(strip $(MSYSTEM)),)
-        ifeq ($(strip $(BASH_VERSION)),)
-            $(error $(shell echo 1>&2 "\
-  [ERROR] Unsupported Shell Environment (CMD/PowerShell detected)\
-  HotPlex requires a POSIX environment to run correctly.\
-  FIX: Please use 'Git Bash' (included with Git for Windows).\
-  Download: https://git-scm.com/download/win"))
+    # Check if running in cmd.exe or PowerShell (no POSIX environment)
+    ifndef MSYSTEM
+        ifndef BASH_VERSION
+            $(error [ERROR] Windows CMD/PowerShell detected - not supported. \
+HotPlex Makefile requires a POSIX-compatible shell: \
+  - Option 1: Git Bash (recommended) - https://git-scm.com/download/win \
+  - Option 2: WSL (Windows Subsystem for Linux) - run 'wsl' in terminal \
+  - Option 3: MSYS2 - https://www.msys2.org/ \
+  - Option 4: Cygwin - https://www.cygwin.com/ \
+)
         endif
     endif
 endif
@@ -499,7 +503,7 @@ docker-up: docker-prepare ## @docker Start Matrix services using REMOTE image
 	[ -z "$$IMG" ] && IMG="ghcr.io/hrygo/hotplex:latest-go (default)"; \
 	printf "${YELLOW}🚀 Environment: MATRIX (REMOTE)${NC}\n"; \
 	printf "${PURPLE}🐳 Image: ${BOLD}$$IMG${NC}\n"; \
-	@cd docker/matrix && \
+	cd docker/matrix && \
 		HOST_UID=$(HOST_UID) \
 		VERSION=$(VERSION) \
 		COMMIT=$(COMMIT) \
@@ -512,7 +516,7 @@ docker-dev: docker-prepare ## @docker Start Matrix services using LOCAL image (h
 	@printf "${CYAN}🔄 Configs synced to ${BOLD}$(HOST_CONFIGS_DIR)${NC}\n"
 	@printf "${YELLOW}🚀 Environment: LOCAL DEVELOPMENT${NC}\n"; \
 	printf "${PURPLE}🐳 Image: ${BOLD}hotplex:go${NC}\n"; \
-	@cd docker/matrix && \
+	cd docker/matrix && \
 		HOTPLEX_IMAGE=hotplex:go \
 		HOST_UID=$(HOST_UID) \
 		VERSION=$(VERSION) \
@@ -524,7 +528,7 @@ docker-dev: docker-prepare ## @docker Start Matrix services using LOCAL image (h
 docker-dev-all: docker-build-go docker-dev ## @docker Rebuild local Go image and start dev services
 
 docker-down: ## @docker Stop and remove services
-	@cd docker/matrix && docker compose down --timeout 30
+	cd docker/matrix && docker compose down --timeout 30
 
 docker-restart: ## @docker Restart services (down → sync → up)
 	@$(MAKE) docker-down
@@ -532,20 +536,20 @@ docker-restart: ## @docker Restart services (down → sync → up)
 	@$(MAKE) docker-up
 
 docker-logs: ## @docker Follow container logs (Ctrl+C to stop)
-	@cd docker/matrix && docker compose logs -f
+	cd docker/matrix && docker compose logs -f
 
 docker-sync: docker-prepare ## @docker Sync local configs to host dir
 	@cp -r configs/* $(HOST_CONFIGS_DIR)/
 	@printf "${GREEN}✅ Configs synced to ${BOLD}$(HOST_CONFIGS_DIR)${NC}\n"
 
 docker-health: ## @docker Show health status of all services
-	@cd docker/matrix && for svc in $$(docker compose ps --services 2>/dev/null); do \
+	cd docker/matrix && for svc in $$(docker compose ps --services 2>/dev/null); do \
 		status=$$(docker inspect --format='{{.State.Health.Status}}' $$svc 2>/dev/null || echo "not_found"); \
 		printf "  $$svc: $$status\n"; \
 	done
 
 docker-check-net: ## @docker Test proxy connectivity from inside containers
-	@cd docker/matrix && for svc in $$(docker compose ps --services 2>/dev/null); do \
+	cd docker/matrix && for svc in $$(docker compose ps --services 2>/dev/null); do \
 		printf "  $$svc: "; \
 		docker exec $$svc nc -zv host.docker.internal 15721 2>&1 | grep -q succeeded && printf "LLM Proxy OK, " || printf "LLM Proxy FAIL, "; \
 		docker exec $$svc nc -zv host.docker.internal 7897 2>&1 | grep -q succeeded && printf "General Proxy OK\n" || printf "General Proxy FAIL\n"; \
@@ -553,7 +557,7 @@ docker-check-net: ## @docker Test proxy connectivity from inside containers
 
 docker-upgrade: ## @docker Pull latest images and restart services
 	@printf "${CYAN}🚀 Pulling latest images...${NC}\n"
-	@cd docker/matrix && docker compose pull
+	cd docker/matrix && docker compose pull
 	@$(MAKE) docker-restart
 
 docker-clean: ## @docker Remove all local hotplex stack images
