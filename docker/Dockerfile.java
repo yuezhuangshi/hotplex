@@ -18,24 +18,28 @@ ENV JAVA_HOME=/opt/java/openjdk
 ENV PATH="${JAVA_HOME}/bin:${PATH}"
 
 # 4. Build & Diagnostic Tools (Cached)
+
+# Gradle
 RUN ENV_GRADLE_VERSION=8.14 && \
     wget -q https://services.gradle.org/distributions/gradle-${ENV_GRADLE_VERSION}-bin.zip && \
-    unzip -q gradle-${ENV_GRADLE_VERSION}-bin.zip -d /opt && rm gradle-${ENV_GRADLE_VERSION}-bin.zip && \
-    ENV_MAVEN_VERSION=3.9.13 && \
+    unzip -q gradle-${ENV_GRADLE_VERSION}-bin.zip -d /opt && rm gradle-${ENV_GRADLE_VERSION}-bin.zip
+
+# Maven
+RUN ENV_MAVEN_VERSION=3.9.13 && \
     wget -q https://archive.apache.org/dist/maven/maven-3/${ENV_MAVEN_VERSION}/binaries/apache-maven-${ENV_MAVEN_VERSION}-bin.tar.gz && \
-    tar -xzf apache-maven-${ENV_MAVEN_VERSION}-bin.tar.gz -C /opt && rm apache-maven-${ENV_MAVEN_VERSION}-bin.tar.gz && \
-    # Spring Boot CLI
-    ENV_SPRING_VERSION=4.0.3 && \
+    tar -xzf apache-maven-${ENV_MAVEN_VERSION}-bin.tar.gz -C /opt && rm apache-maven-${ENV_MAVEN_VERSION}-bin.tar.gz
+
+# Spring Boot CLI
+RUN ENV_SPRING_VERSION=4.0.3 && \
     wget -q https://repo.maven.apache.org/maven2/org/springframework/boot/spring-boot-cli/${ENV_SPRING_VERSION}/spring-boot-cli-${ENV_SPRING_VERSION}-bin.tar.gz && \
-    tar -xzf spring-boot-cli-${ENV_SPRING_VERSION}-bin.tar.gz -C /opt && rm spring-boot-cli-${ENV_SPRING_VERSION}-bin.tar.gz && \
-    # JBang (Install to /opt/jbang for global access)
-    curl -Ls https://sh.jbang.dev | bash -s - --prefix /opt/jbang app setup && \
-    ln -s /opt/jbang/bin/jbang /usr/local/bin/jbang && \
-    # Arthas
-    curl -sLk https://arthas.aliyun.com/install.sh | sh && \
-    mv arthas /opt/arthas && \
-    # Async Profiler
-    ENV_ASPROF_VERSION=4.3 && \
+    tar -xzf spring-boot-cli-${ENV_SPRING_VERSION}-bin.tar.gz -C /opt && rm spring-boot-cli-${ENV_SPRING_VERSION}-bin.tar.gz
+
+# JBang (Install to /opt/jbang for global access)
+RUN curl -Ls https://sh.jbang.dev | bash -s - --prefix /opt/jbang app setup && \
+    ln -s /opt/jbang/bin/jbang /usr/local/bin/jbang
+
+# Async Profiler
+RUN ENV_ASPROF_VERSION=4.3 && \
     ARCH=$(uname -m) && \
     if [ "$ARCH" = "x86_64" ]; then ASPROF_BIN="linux-x64"; \
     elif [ "$ARCH" = "aarch64" ]; then ASPROF_BIN="linux-arm64"; fi && \
@@ -43,10 +47,13 @@ RUN ENV_GRADLE_VERSION=8.14 && \
     mkdir -p /opt/async-profiler && tar -xzf async-profiler-${ENV_ASPROF_VERSION}-${ASPROF_BIN}.tar.gz -C /opt/async-profiler --strip-components=1 && \
     rm async-profiler-${ENV_ASPROF_VERSION}-${ASPROF_BIN}.tar.gz
 
+# Arthas (skip if fails, it's optional)
+RUN curl -sLk https://arthas.aliyun.com/install.sh 2>/dev/null | bash -s -- -p /opt/arthas || true
+
 ENV GRADLE_HOME=/opt/gradle-8.14
 ENV MAVEN_HOME=/opt/apache-maven-3.9.13
 ENV SPRING_HOME=/opt/spring-4.0.3
-ENV PATH="${GRADLE_HOME}/bin:${MAVEN_HOME}/bin:${SPRING_HOME}/bin:/opt/jbang/bin:/opt/arthas:/opt/async-profiler/bin:${PATH}"
+ENV PATH="${GRADLE_HOME}/bin:${MAVEN_HOME}/bin:${SPRING_HOME}/bin:/opt/jbang/bin:/opt/arthas/bin:/opt/async-profiler/bin:${PATH}"
 
 # ==============================================================================
 # 🔥 Late Injection: The Binary (Changes frequently)

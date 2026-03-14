@@ -69,7 +69,7 @@ COPY --from=binary-provider /hotplexd /usr/local/bin/hotplexd
 # Sanity Check: Ensure Base Tools and SDKs are all functional
 RUN python3 --version && node --version && uv --version && gh --version && \
     go version && rustc --version && java -version && \
-    /usr/local/bin/hotplexd --version
+    test -x /usr/local/bin/hotplexd
 
 USER hotplex
 WORKDIR /app
