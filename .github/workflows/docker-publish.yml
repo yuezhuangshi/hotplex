@@ -103,6 +103,7 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.should_build == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
       packages: write
@@ -130,6 +131,7 @@ jobs:
   build-artifacts:
     needs: prepare
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
       packages: write
@@ -159,8 +161,10 @@ jobs:
     needs: [prepare, build-base, build-artifacts]
     if: needs.prepare.outputs.should_build == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
+      max-parallel: 2
       matrix:
         variant:
           - { name: go, dockerfile: Dockerfile.golang, suffix: '-go' }
