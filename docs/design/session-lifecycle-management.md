@@ -4,6 +4,27 @@
 
 ## 核心设计原则
 
+### SessionID 生成要素
+
+SessionID 由 **5 个要素** 组合生成，确保唯一性和确定性：
+
+```
+SessionID = UUID5(namespace + ":session:" + platform + ":" + userID + ":" + botUserID + ":" + channelID + ":" + threadID)
+```
+
+| 要素 | 说明 | 示例 |
+|------|------|------|
+| **platform** | 平台标识 | `slack`, `feishu` |
+| **userID** | 发起消息的用户 ID | `U12345` |
+| **botUserID** | Bot 用户 ID（区分多 bot） | `B67890` |
+| **channelID** | 频道/群组 ID | `C99999` |
+| **threadID** | 线程 ID（threaded replies） | `Ts12345.6789` 或空 |
+
+**关键设计**：
+- 同一用户在不同频道 → 不同 SessionID
+- 同一用户在同一频道的不同线程 → 不同 SessionID
+- 多 Bot 场景：botUserID 确保每个 Bot 独立会话
+
 ### 端到端一致性映射
 
 ```
@@ -13,10 +34,24 @@ SessionID ──SHA1──▶ ProviderSessionID (永远确定性，可追溯)
 ✅ 始终: SHA1(sessionID) → ProviderSessionID
 ```
 
-**关键点**：
-- `sessionID` = 逻辑会话 ID（如 `slack:U12345:C67890:Ts12345`）
-- `providerSessionID` = CLI 实际使用的 UUID（永远通过 SHA1 生成）
-- **绝对不存在 random UUID**，确保端到端可追溯
+**完整映射链**：
+
+```
+用户消息 (platform, userID, botUserID, channelID, threadID)
+    │
+    ▼ UUID5(namespace + components)
+SessionID (逻辑会话 ID)
+    │
+    │  例如: "550e8400-e29b-41d4-a716-446655440000"
+    │
+    ▼ SHA1(namespace:session:<sessionID>)
+ProviderSessionID (CLI 实际使用)
+    │
+    │  例如: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+    │
+    ▼
+CLI 进程 (--session-id 或 --resume)
+```
 
 ---
 
