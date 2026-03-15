@@ -1,5 +1,14 @@
 # CHANGELOG.md
 
+## [v0.28.1] - 2026-03-15
+
+### Fixed
+- **Docker CLI Symlink** - Fixed Claude Code CLI symlink breakage caused by npm package structure changes:
+  - Replaced hardcoded `bin/claude` path with npm-generated symlink
+  - Now auto-adapts to package.json `bin` field changes
+
+---
+
 ## [v0.28.0] - 2026-03-15
 
 ### Added
