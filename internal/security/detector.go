@@ -509,6 +509,25 @@ func (dd *Detector) loadSafePatterns() {
 		// These patterns appear in prompts and should not be treated as shell injection
 		{"@`[^`]+`", "Loki mode file reference", "develop-tools"},
 		{`@[a-zA-Z0-9_./-]+(?:\s|$)`, "File reference notation", "develop-tools"},
+
+		// Natural language backtick references (Allowlist)
+		// These patterns match backtick content in natural language context (not shell command substitution)
+		// IMPORTANT: These patterns must be specific enough to avoid bypassing dangerous command detection
+		//
+		// Examples of SAFE usage:
+		// - "删除 `temp-branch`" - Chinese verb + backtick reference
+		// - "查看 `config.json`" - Chinese verb + backtick reference
+		// - "check `status`" - English verb + backtick reference
+		// - "delete `temp-file`" - English verb + backtick reference
+		//
+		// Examples that should STILL BE DETECTED as dangerous:
+		// - "How do I use `rm -rf /` safely?" - Contains dangerous command
+		// - "Run `sudo rm -rf /`" - Contains dangerous command
+		//
+		// Strategy: Only match patterns where:
+		// 1. A specific verb precedes the backtick (indicating a reference, not a command)
+		// 2. The backtick content looks like a simple identifier (no pipes, redirects, spaces, etc.)
+		{`(?i)(delete|remove|check|verify|test|update|create|list|show|find|get|set|edit|modify|run|view|open|close|read|write|add|clear|clean|reset|restart|start|stop|build|deploy|install|uninstall|upgrade|downgrade|查看|编辑|删除|修改|运行|添加|移除|清理|重置|启动|停止|安装|卸载|更新|检查|验证|测试|列出|显示|查找|获取|设置)\s+\x60[a-zA-Z0-9_./-]+\x60(?:\s|$|\?|。|！|,|\.|;)`, "Command with backtick file/object reference", "develop-tools"},
 	}
 
 	for _, p := range patterns {

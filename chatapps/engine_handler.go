@@ -138,10 +138,6 @@ func (w *engineWrapper) StopSession(sessionID string, reason string) error {
 	return w.eng.StopSession(sessionID, reason)
 }
 
-func (w *engineWrapper) ResetSessionProvider(sessionID string) {
-	w.eng.ResetSessionProvider(sessionID)
-}
-
 func (w *engineWrapper) SetDangerAllowPaths(paths []string) {
 	w.eng.SetDangerAllowPaths(paths)
 }

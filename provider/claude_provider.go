@@ -484,6 +484,58 @@ func (p *ClaudeCodeProvider) CheckSessionMarker(providerSessionID string) bool {
 	return p.markerStore.Exists(providerSessionID)
 }
 
+// VerifySession checks if a CLI session data file exists and can be resumed.
+// This prevents "No conversation found with session ID" errors when the marker
+// exists but the CLI session data has been deleted or expired.
+func (p *ClaudeCodeProvider) VerifySession(providerSessionID string, workDir string) bool {
+	if providerSessionID == "" {
+		return false
+	}
+
+	cwd := workDir
+	if cwd == "" {
+		var err error
+		cwd, err = os.Getwd()
+		if err != nil {
+			cwd = os.TempDir()
+		}
+	}
+
+	// Claude Code stores sessions in ~/.claude/projects/<workspace-key>/<providerSessionID>.jsonl
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		p.logger.Warn("Failed to get home directory for session verification", "error", err)
+		return false
+	}
+	projectsDir := filepath.Join(homeDir, ".claude", "projects")
+	workspaceKey := strings.ReplaceAll(cwd, "/", "-")
+	sessionPath := filepath.Join(projectsDir, workspaceKey, providerSessionID+".jsonl")
+
+	// Check if the session file exists and is not empty
+	info, err := os.Stat(sessionPath)
+	if err != nil {
+		p.logger.Debug("CLI session file not found, cannot resume",
+			"provider_session_id", providerSessionID,
+			"path", sessionPath,
+			"error", err)
+		return false
+	}
+
+	// Check if file is not empty (has actual session data)
+	if info.Size() == 0 {
+		p.logger.Debug("CLI session file is empty, cannot resume",
+			"provider_session_id", providerSessionID,
+			"path", sessionPath)
+		return false
+	}
+
+	p.logger.Debug("CLI session file exists and can be resumed",
+		"provider_session_id", providerSessionID,
+		"path", sessionPath,
+		"size", info.Size())
+	return true
+}
+
 // mergeStringSlices merges two string slices with deduplication.
 func mergeStringSlices(base, overlay []string) []string {
 	if len(base) == 0 {

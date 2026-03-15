@@ -771,16 +771,6 @@ func (r *Engine) StopSession(sessionID string, reason string) error {
 	return r.manager.TerminateSession(sessionID)
 }
 
-// ResetSessionProvider marks a session to get a new ProviderSessionID on restart.
-// This is used for /clear command to force a fresh session with new context.
-func (r *Engine) ResetSessionProvider(sessionID string) {
-	if pool, ok := r.manager.(*intengine.SessionPool); ok {
-		pool.ResetProviderSessionID(sessionID)
-		r.logger.Info("Engine: marked session for ProviderSessionID reset",
-			"session_id", sessionID)
-	}
-}
-
 // CleanupSessionFiles deletes all session files associated with the provider session.
 // This handles the complete removal of context on disk for commands like /reset.
 func (r *Engine) CleanupSessionFiles(sessionID string) error {

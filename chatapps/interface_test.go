@@ -44,7 +44,6 @@ type MockEngine struct {
 	GetSessionStatsFunc        func(sessionID string) *SessionStats
 	ValidateConfigFunc         func(cfg *types.Config) error
 	StopSessionFunc            func(sessionID string, reason string) error
-	ResetSessionProviderFunc   func(sessionID string)
 	SetDangerAllowPathsFunc    func(paths []string)
 	SetDangerBypassEnabledFunc func(token string, enabled bool) error
 	SetAllowedToolsFunc        func(tools []string)
@@ -101,12 +100,6 @@ func (m *MockEngine) StopSession(sessionID string, reason string) error {
 		return m.StopSessionFunc(sessionID, reason)
 	}
 	return nil
-}
-
-func (m *MockEngine) ResetSessionProvider(sessionID string) {
-	if m.ResetSessionProviderFunc != nil {
-		m.ResetSessionProviderFunc(sessionID)
-	}
 }
 
 func (m *MockEngine) SetDangerAllowPaths(paths []string) {

@@ -19,7 +19,6 @@ type Engine interface {
 	GetSessionStats(sessionID string) *SessionStats
 	ValidateConfig(cfg *types.Config) error
 	StopSession(sessionID string, reason string) error
-	ResetSessionProvider(sessionID string)
 	SetDangerAllowPaths(paths []string)
 	SetDangerBypassEnabled(token string, enabled bool) error
 	SetAllowedTools(tools []string)

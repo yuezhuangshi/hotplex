@@ -255,6 +255,11 @@ func (p *mockProvider) CleanupSession(sessionID string, workDir string) error {
 	return nil
 }
 
+func (p *mockProvider) VerifySession(sessionID string, workDir string) bool {
+	// Mock always returns true for testing purposes
+	return true
+}
+
 func (p *mockProvider) Name() string {
 	return string(p.meta.Type)
 }

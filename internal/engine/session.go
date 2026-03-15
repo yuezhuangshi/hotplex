@@ -139,8 +139,15 @@ func (s *Session) waitForReady(ctx context.Context, timeout time.Duration) {
 					return
 				}
 				if s.isAliveLocked() {
+					// Set status directly while holding lock to avoid lock-unlock-lock pattern
+					s.Status = SessionStatusReady
+					if !s.closed {
+						select {
+						case s.statusChange <- SessionStatusReady:
+						default:
+						}
+					}
 					s.mu.Unlock()
-					s.SetStatus(SessionStatusReady)
 					return
 				}
 				s.mu.Unlock()

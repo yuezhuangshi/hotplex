@@ -77,6 +77,11 @@ type Provider interface {
 	// CleanupSession cleans up provider-specific session files from disk (e.g. for /reset).
 	CleanupSession(providerSessionID string, workDir string) error
 
+	// VerifySession checks if a session can be resumed (i.e., session data exists on disk).
+	// This is called before attempting to resume a session to avoid "No conversation found" errors.
+	// Returns true if the session exists and can be resumed, false otherwise.
+	VerifySession(providerSessionID string, workDir string) bool
+
 	// Name returns the provider name for logging and identification.
 	Name() string
 }
@@ -293,6 +298,12 @@ func (p *ProviderBase) ValidateBinary() (string, error) {
 // Providers that store session files on disk (like Claude Code) should override this.
 func (p *ProviderBase) CleanupSession(providerSessionID string, workDir string) error {
 	return nil
+}
+
+// VerifySession provides a default implementation that always returns true.
+// Providers that support session resumption should override this to check if session data exists.
+func (p *ProviderBase) VerifySession(providerSessionID string, workDir string) bool {
+	return true // Default: assume session can be resumed
 }
 
 // ============================================================================

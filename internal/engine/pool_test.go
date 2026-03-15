@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -182,6 +183,32 @@ func TestSessionPool_buildCLIArgs_Resume(t *testing.T) {
 		t.Fatalf("Failed to create marker: %v", err)
 	}
 	defer func() { _ = pool.markerStore.Delete("existing-session") }()
+
+	// Create a CLI session data file to make VerifySession return true
+	// Claude Code stores sessions in ~/.claude/projects/<workspace-key>/<session-id>.jsonl
+	// The workspace-key is derived from the current working directory (or WorkDir if specified)
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("Failed to get home directory: %v", err)
+	}
+
+	// Get the current working directory - this is what VerifySession uses when WorkDir is empty
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get current directory: %v", err)
+	}
+	workspaceKey := strings.ReplaceAll(cwd, "/", "-")
+	projectsDir := filepath.Join(homeDir, ".claude", "projects")
+	sessionPath := filepath.Join(projectsDir, workspaceKey, "existing-session.jsonl")
+
+	// Create the session file
+	if err := os.MkdirAll(filepath.Dir(sessionPath), 0755); err != nil {
+		t.Fatalf("Failed to create session directory: %v", err)
+	}
+	if err := os.WriteFile(sessionPath, []byte(`{"type":"test"}`), 0644); err != nil {
+		t.Fatalf("Failed to create session file: %v", err)
+	}
+	defer func() { _ = os.Remove(sessionPath) }()
 
 	args := pool.buildCLIArgs("existing-session", logger, "unit test resume prompt", SessionConfig{})
 
