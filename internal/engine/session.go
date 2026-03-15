@@ -321,18 +321,27 @@ func (s *Session) ReadStderr() {
 				"workdir", s.Config.WorkDir,
 				"content", line)
 		}
-		// Write to session log file for persistence
-		if s.logFile != nil {
-			if _, err := fmt.Fprintf(s.logFile, "[%s] %s\n", time.Now().Format(time.RFC3339), line); err != nil && s.logger != nil {
-				s.logger.Warn("Failed to write to session log file", "error", err, "session_id", s.ID)
-			}
-		}
+		// Write to session log file for persistence with proper locking
+		s.writeToLogFile(line)
 	}
 
 	if err := scanner.Err(); err != nil && s.logger != nil && !isExpectedCloseError(err) {
 		s.logger.Error("Session stderr scanner error",
 			"session_id", s.ID,
 			"error", err)
+	}
+}
+
+// writeToLogFile writes a line to the session log file with proper mutex protection.
+func (s *Session) writeToLogFile(line string) {
+	s.mu.RLock()
+	logFile := s.logFile
+	s.mu.RUnlock()
+
+	if logFile != nil {
+		if _, err := fmt.Fprintf(logFile, "[%s] %s\n", time.Now().Format(time.RFC3339), line); err != nil && s.logger != nil {
+			s.logger.Warn("Failed to write to session log file", "error", err, "session_id", s.ID)
+		}
 	}
 }
 
@@ -357,7 +366,15 @@ func (s *Session) OpenLogFile() error {
 	if err := os.MkdirAll(SessionLogDir, 0755); err != nil {
 		return fmt.Errorf("create log dir: %w", err)
 	}
-	logPath := filepath.Join(SessionLogDir, s.ID+".log")
+
+	// SECURITY: Sanitize session ID to prevent path traversal attacks
+	// filepath.Base extracts only the final component, removing any directory separators
+	safeID := filepath.Base(s.ID)
+	if safeID == "." || safeID == ".." {
+		return fmt.Errorf("invalid session ID for log file: %s", s.ID)
+	}
+
+	logPath := filepath.Join(SessionLogDir, safeID+".log")
 	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		return fmt.Errorf("open log file: %w", err)

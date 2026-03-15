@@ -68,6 +68,24 @@ func NewSessionPool(logger *slog.Logger, timeout time.Duration, opts EngineOptio
 
 // GetOrCreateSession returns an existing session or starts a new one.
 func (sm *SessionPool) GetOrCreateSession(ctx context.Context, sessionID string, cfg SessionConfig, prompt string) (*Session, bool, error) {
+	return sm.getOrCreateSession(ctx, sessionID, cfg, prompt, 0)
+}
+
+// maxRecursionDepth limits how many times we can recursively call getOrCreateSession
+// to prevent stack overflow in pathological concurrent scenarios
+const maxRecursionDepth = 5
+
+func (sm *SessionPool) getOrCreateSession(ctx context.Context, sessionID string, cfg SessionConfig, prompt string, depth int) (*Session, bool, error) {
+	// Validate required parameters
+	if sessionID == "" {
+		return nil, false, fmt.Errorf("sessionID cannot be empty")
+	}
+
+	// Prevent infinite recursion in pathological concurrent scenarios
+	if depth > maxRecursionDepth {
+		return nil, false, fmt.Errorf("session creation recursion limit exceeded for session %s", sessionID)
+	}
+
 	// 1. Check existing
 	sm.mu.RLock()
 	if sess, ok := sm.sessions[sessionID]; ok {
@@ -98,8 +116,8 @@ func (sm *SessionPool) GetOrCreateSession(ctx context.Context, sessionID string,
 		case <-ctx.Done():
 			return nil, false, ctx.Err()
 		case <-ch:
-			// Creation finished, recurse to check result
-			return sm.GetOrCreateSession(ctx, sessionID, cfg, prompt)
+			// Creation finished, recurse to check result with depth tracking
+			return sm.getOrCreateSession(ctx, sessionID, cfg, prompt, depth+1)
 		}
 	}
 
@@ -139,6 +157,9 @@ func (sm *SessionPool) GetSession(sessionID string) (*Session, bool) {
 
 // TerminateSession stops and removes a session.
 func (sm *SessionPool) TerminateSession(sessionID string) error {
+	if sessionID == "" {
+		return nil // Nothing to terminate
+	}
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	return sm.cleanupSessionLocked(sessionID)
@@ -278,6 +299,16 @@ func (sm *SessionPool) startSession(ctx context.Context, sessionID string, cfg S
 
 	if err := cmd.Start(); err != nil {
 		startedCh <- err
+		// Close pipes to prevent resource leak on start failure
+		if stdin != nil {
+			_ = stdin.Close()
+		}
+		if stdout != nil {
+			_ = stdout.Close()
+		}
+		if stderr != nil {
+			_ = stderr.Close()
+		}
 		sys.CloseJobHandle(jobHandle) // Cleanup job handle on error
 		return nil, fmt.Errorf("cmd start: %w", err)
 	}

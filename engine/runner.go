@@ -773,17 +773,40 @@ func (r *Engine) StopSession(sessionID string, reason string) error {
 
 // CleanupSessionFiles deletes all session files associated with the provider session.
 // This handles the complete removal of context on disk for commands like /reset.
+// Note: This method requires the session to still exist in the pool.
+// Use CleanupSessionFilesDirect if the session has already been terminated.
 func (r *Engine) CleanupSessionFiles(sessionID string) error {
-	if pool, ok := r.manager.(*intengine.SessionPool); ok {
-		if sess, exists := pool.GetSession(sessionID); exists {
-			// Also delete the hotplex lock/marker so it won't be resumed next time
-			if err := pool.DeleteMarker(sess.ProviderSessionID); err != nil {
-				r.logger.Warn("Failed to delete session marker", "error", err)
-			}
-			return pool.CleanupSessionFiles(sess.ProviderSessionID, sess.Config.WorkDir)
+	pool, ok := r.manager.(*intengine.SessionPool)
+	if !ok {
+		r.logger.Debug("CleanupSessionFiles: manager is not a SessionPool, skipping cleanup",
+			"manager_type", fmt.Sprintf("%T", r.manager))
+		return nil
+	}
+	if sess, exists := pool.GetSession(sessionID); exists {
+		// Also delete the hotplex lock/marker so it won't be resumed next time
+		if err := pool.DeleteMarker(sess.ProviderSessionID); err != nil {
+			r.logger.Warn("Failed to delete session marker", "error", err)
 		}
+		return pool.CleanupSessionFiles(sess.ProviderSessionID, sess.Config.WorkDir)
 	}
 	return nil
+}
+
+// CleanupSessionFilesDirect deletes session files using explicit IDs.
+// Use this when the session has already been terminated and removed from the pool.
+// This is the safe way to cleanup after StopSession has been called.
+func (r *Engine) CleanupSessionFilesDirect(providerSessionID, workDir string) error {
+	pool, ok := r.manager.(*intengine.SessionPool)
+	if !ok {
+		r.logger.Debug("CleanupSessionFilesDirect: manager is not a SessionPool, skipping cleanup",
+			"manager_type", fmt.Sprintf("%T", r.manager))
+		return nil
+	}
+	// Delete the hotplex lock/marker so it won't be resumed next time
+	if err := pool.DeleteMarker(providerSessionID); err != nil {
+		r.logger.Warn("Failed to delete session marker", "error", err)
+	}
+	return pool.CleanupSessionFiles(providerSessionID, workDir)
 }
 
 // GetSession retrieves an active session by sessionID.

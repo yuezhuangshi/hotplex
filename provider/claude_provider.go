@@ -7,11 +7,34 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/hrygo/hotplex/internal/persistence"
 )
+
+// isValidSessionID checks if a session ID is safe to use in file paths.
+// It blocks obvious path traversal attempts while allowing test IDs.
+// A valid session ID must:
+// - Not be empty
+// - Not contain path separators (/ or \)
+// - Not contain parent directory references (..)
+// - Be alphanumeric with hyphens/underscores only (allows UUIDs and test IDs)
+var validSessionIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+
+func isValidSessionID(sessionID string) bool {
+	if sessionID == "" {
+		return false
+	}
+	// Block path traversal attempts
+	if strings.Contains(sessionID, "..") ||
+		strings.Contains(sessionID, "/") ||
+		strings.Contains(sessionID, "\\") {
+		return false
+	}
+	return validSessionIDPattern.MatchString(sessionID)
+}
 
 // ClaudeCodeProvider implements the Provider interface for Claude Code CLI.
 // This is the default provider and maintains full backward compatibility
@@ -456,6 +479,11 @@ func (p *ClaudeCodeProvider) CleanupSession(providerSessionID string, workDir st
 		return nil
 	}
 
+	// SECURITY: Validate session ID to prevent path traversal attacks
+	if !isValidSessionID(providerSessionID) {
+		return fmt.Errorf("invalid session ID format: potential path traversal attack")
+	}
+
 	cwd := workDir
 	if cwd == "" {
 		var err error
@@ -466,16 +494,33 @@ func (p *ClaudeCodeProvider) CleanupSession(providerSessionID string, workDir st
 	}
 
 	// Claude Code stores sessions in ~/.claude/projects/<workspace-key>/<providerSessionID>.jsonl
-	projectsDir := filepath.Join(os.Getenv("HOME"), ".claude", "projects")
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("get home directory: %w", err)
+	}
+	projectsDir := filepath.Join(homeDir, ".claude", "projects")
 	workspaceKey := strings.ReplaceAll(cwd, "/", "-")
 	sessionPath := filepath.Join(projectsDir, workspaceKey, providerSessionID+".jsonl")
 
+	// SECURITY: Verify the resolved path is still within projectsDir (prevent path traversal)
+	absPath, err := filepath.Abs(sessionPath)
+	if err != nil {
+		return fmt.Errorf("resolve absolute path: %w", err)
+	}
+	absProjectsDir, err := filepath.Abs(projectsDir)
+	if err != nil {
+		return fmt.Errorf("resolve projects dir: %w", err)
+	}
+	if !strings.HasPrefix(absPath, absProjectsDir+string(filepath.Separator)) {
+		return fmt.Errorf("path traversal detected: session path outside projects directory")
+	}
+
 	// Best effort deletion
-	if err := os.Remove(sessionPath); err != nil && !os.IsNotExist(err) {
+	if err := os.Remove(absPath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("remove Claude Code session file: %w", err)
 	}
 
-	p.logger.Debug("Cleaned up Claude Code session file", "path", sessionPath)
+	p.logger.Debug("Cleaned up Claude Code session file", "path", absPath)
 	return nil
 }
 
@@ -489,6 +534,12 @@ func (p *ClaudeCodeProvider) CheckSessionMarker(providerSessionID string) bool {
 // exists but the CLI session data has been deleted or expired.
 func (p *ClaudeCodeProvider) VerifySession(providerSessionID string, workDir string) bool {
 	if providerSessionID == "" {
+		return false
+	}
+
+	// SECURITY: Validate session ID to prevent path traversal attacks
+	if !isValidSessionID(providerSessionID) {
+		p.logger.Warn("Invalid session ID format rejected", "session_id", providerSessionID)
 		return false
 	}
 
@@ -511,12 +562,28 @@ func (p *ClaudeCodeProvider) VerifySession(providerSessionID string, workDir str
 	workspaceKey := strings.ReplaceAll(cwd, "/", "-")
 	sessionPath := filepath.Join(projectsDir, workspaceKey, providerSessionID+".jsonl")
 
+	// SECURITY: Verify the resolved path is still within projectsDir (prevent path traversal)
+	absPath, err := filepath.Abs(sessionPath)
+	if err != nil {
+		p.logger.Warn("Failed to resolve absolute path", "error", err)
+		return false
+	}
+	absProjectsDir, err := filepath.Abs(projectsDir)
+	if err != nil {
+		p.logger.Warn("Failed to resolve projects dir", "error", err)
+		return false
+	}
+	if !strings.HasPrefix(absPath, absProjectsDir+string(filepath.Separator)) {
+		p.logger.Warn("Path traversal detected in session verification", "path", absPath)
+		return false
+	}
+
 	// Check if the session file exists and is not empty
-	info, err := os.Stat(sessionPath)
+	info, err := os.Stat(absPath)
 	if err != nil {
 		p.logger.Debug("CLI session file not found, cannot resume",
 			"provider_session_id", providerSessionID,
-			"path", sessionPath,
+			"path", absPath,
 			"error", err)
 		return false
 	}
@@ -525,13 +592,13 @@ func (p *ClaudeCodeProvider) VerifySession(providerSessionID string, workDir str
 	if info.Size() == 0 {
 		p.logger.Debug("CLI session file is empty, cannot resume",
 			"provider_session_id", providerSessionID,
-			"path", sessionPath)
+			"path", absPath)
 		return false
 	}
 
 	p.logger.Debug("CLI session file exists and can be resumed",
 		"provider_session_id", providerSessionID,
-		"path", sessionPath,
+		"path", absPath,
 		"size", info.Size())
 	return true
 }

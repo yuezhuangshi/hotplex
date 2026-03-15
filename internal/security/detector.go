@@ -781,12 +781,20 @@ func getSuggestions(category string) []string {
 
 // SetAllowPaths sets the list of allowed safe paths.
 // Paths are cleaned to eliminate arbitrary trailing slashes or relative segments.
+// Only absolute paths are accepted; relative paths are skipped with a warning.
 func (dd *Detector) SetAllowPaths(paths []string) {
 	dd.mu.Lock()
 	defer dd.mu.Unlock()
 	cleaned := make([]string, 0, len(paths))
 	for _, p := range paths {
-		cleaned = append(cleaned, filepath.Clean(p))
+		cleanPath := filepath.Clean(p)
+		// SECURITY: Only accept absolute paths to prevent relative path confusion
+		// A relative path in allowlist could allow access to unintended directories
+		if !filepath.IsAbs(cleanPath) {
+			dd.logger.Warn("Ignoring relative path in allowlist", "path", p)
+			continue
+		}
+		cleaned = append(cleaned, cleanPath)
 	}
 	dd.allowPaths = cleaned
 	dd.logger.Debug("Danger detector allow paths updated", "paths", cleaned)

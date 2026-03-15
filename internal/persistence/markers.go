@@ -7,8 +7,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sync"
 )
+
+// validSessionIDPattern validates that sessionID contains only safe characters.
+// This prevents path traversal while allowing test IDs like "test-session-1".
+// Pattern allows: alphanumeric, hyphens, underscores (UUIDs use hyphens)
+var validSessionIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 // SessionMarkerStore defines the interface for session marker persistence.
 // Session markers are used to track whether a CLI session can be resumed
@@ -89,7 +95,9 @@ func (s *FileMarkerStore) Create(sessionID string) error {
 	defer s.mu.Unlock()
 
 	markerPath := s.markerPath(sessionID)
-	if err := os.WriteFile(markerPath, []byte{}, 0644); err != nil {
+	// SECURITY: Use 0600 permissions (owner read/write only) to prevent
+	// other users from tampering with session markers
+	if err := os.WriteFile(markerPath, []byte{}, 0600); err != nil {
 		return fmt.Errorf("create session marker: %w", err)
 	}
 	return nil
@@ -115,7 +123,14 @@ func (s *FileMarkerStore) Dir() string {
 }
 
 // markerPath returns the full path to a session marker file.
+// It validates that sessionID is safe to prevent path traversal attacks.
 func (s *FileMarkerStore) markerPath(sessionID string) string {
+	// SECURITY: Validate sessionID contains only safe characters to prevent path traversal
+	// Reject attempts like "../../../etc/passwd" or "../../.ssh/authorized_keys"
+	if !validSessionIDPattern.MatchString(sessionID) {
+		// Return a safe path that will never exist, causing operations to fail safely
+		return filepath.Join(s.markerDir, "INVALID_SESSION_ID.lock")
+	}
 	return filepath.Join(s.markerDir, sessionID+".lock")
 }
 

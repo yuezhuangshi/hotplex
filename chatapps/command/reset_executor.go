@@ -52,6 +52,7 @@ func (e *ResetExecutor) Execute(ctx context.Context, req *Request, callback even
 
 	sessionID := req.SessionID
 	var providerSessionID string
+	var workDir string
 
 	sess, exists := e.engine.GetSession(sessionID)
 	if !exists {
@@ -63,7 +64,11 @@ func (e *ResetExecutor) Execute(ctx context.Context, req *Request, callback even
 			Message: "No active conversation found. Start chatting first!",
 		}, nil
 	}
+	// CRITICAL: Save providerSessionID and workDir BEFORE StopSession
+	// StopSession removes the session from the pool, making it impossible
+	// to retrieve these values afterwards (race condition fix)
 	providerSessionID = sess.ProviderSessionID
+	workDir = sess.Config.WorkDir
 
 	_ = emitter.Success(0, "Session located")
 
@@ -89,8 +94,9 @@ func (e *ResetExecutor) Execute(ctx context.Context, req *Request, callback even
 	// Step 3 & 4: Delete session context via unified Engine API (60%-80%)
 	_ = emitter.Running(2)
 
-	// Calls down to Provider interface to scrape `.jsonl` and HotPlex to drop the `.lock` marker
-	cleanupErr := e.engine.CleanupSessionFiles(sessionID)
+	// CRITICAL: Use CleanupSessionFilesDirect because StopSession already removed
+	// the session from the pool. We pass the pre-saved providerSessionID and workDir.
+	cleanupErr := e.engine.CleanupSessionFilesDirect(providerSessionID, workDir)
 	if cleanupErr != nil {
 		_ = emitter.Error(2, fmt.Sprintf("Cleanup incomplete: %v", cleanupErr))
 		_ = emitter.Error(3, fmt.Sprintf("Cleanup incomplete: %v", cleanupErr))

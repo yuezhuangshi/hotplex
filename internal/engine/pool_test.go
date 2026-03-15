@@ -178,11 +178,14 @@ func TestSessionPool_buildCLIArgs_Resume(t *testing.T) {
 		Namespace: "test",
 	}, "/tmp/claude", prv)
 
+	// Use a valid UUID format for providerSessionID (matches production behavior)
+	testSessionUUID := "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
 	// Create a marker to simulate existing session
-	if err := pool.markerStore.Create("existing-session"); err != nil {
+	if err := pool.markerStore.Create(testSessionUUID); err != nil {
 		t.Fatalf("Failed to create marker: %v", err)
 	}
-	defer func() { _ = pool.markerStore.Delete("existing-session") }()
+	defer func() { _ = pool.markerStore.Delete(testSessionUUID) }()
 
 	// Create a CLI session data file to make VerifySession return true
 	// Claude Code stores sessions in ~/.claude/projects/<workspace-key>/<session-id>.jsonl
@@ -199,7 +202,7 @@ func TestSessionPool_buildCLIArgs_Resume(t *testing.T) {
 	}
 	workspaceKey := strings.ReplaceAll(cwd, "/", "-")
 	projectsDir := filepath.Join(homeDir, ".claude", "projects")
-	sessionPath := filepath.Join(projectsDir, workspaceKey, "existing-session.jsonl")
+	sessionPath := filepath.Join(projectsDir, workspaceKey, testSessionUUID+".jsonl")
 
 	// Create the session file
 	if err := os.MkdirAll(filepath.Dir(sessionPath), 0755); err != nil {
@@ -210,7 +213,7 @@ func TestSessionPool_buildCLIArgs_Resume(t *testing.T) {
 	}
 	defer func() { _ = os.Remove(sessionPath) }()
 
-	args := pool.buildCLIArgs("existing-session", logger, "unit test resume prompt", SessionConfig{})
+	args := pool.buildCLIArgs(testSessionUUID, logger, "unit test resume prompt", SessionConfig{})
 
 	// Should have --resume for existing sessions
 	if !containsInSlice(args, "--resume") {
