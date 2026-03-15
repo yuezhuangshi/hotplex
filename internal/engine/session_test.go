@@ -430,3 +430,58 @@ func TestEngineOptions_Defaults(t *testing.T) {
 		t.Errorf("Namespace = %q, want empty", opts.Namespace)
 	}
 }
+
+// TestSession_ReadStderr_LogFileWriteError tests error handling when log file write fails
+func TestSession_ReadStderr_LogFileWriteError(t *testing.T) {
+	logger := newTestLogger()
+
+	// Create a pipe to simulate stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Failed to create pipe: %v", err)
+	}
+
+	// Create session with a read-only log file (writing will fail)
+	se := &Session{
+		ID:                "test-stderr-error",
+		ProviderSessionID: "test-provider",
+		Status:            SessionStatusBusy,
+		logger:            logger,
+		stderr:            r,
+		statusChange:      make(chan SessionStatus, 10),
+	}
+
+	// Create a temp file and open it read-only so writes will fail
+	tmpFile, err := os.CreateTemp("", "session-log-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpPath := tmpFile.Name()
+	if err := tmpFile.Close(); err != nil {
+		t.Fatalf("Failed to close temp file: %v", err)
+	}
+
+	// Open read-only to cause write error
+	se.logFile, err = os.Open(tmpPath)
+	if err != nil {
+		t.Fatalf("Failed to open log file: %v", err)
+	}
+	// Clean up after test
+	if se.logFile != nil {
+		defer func() { _ = se.logFile.Close() }()
+	}
+	defer func() { _ = os.Remove(tmpPath) }()
+
+	// Write to pipe and close it to trigger scanner
+	go func() {
+		if _, err := w.Write([]byte("test error line\n")); err != nil {
+			t.Logf("Write error (expected in goroutine): %v", err)
+		}
+		if err := w.Close(); err != nil {
+			t.Logf("Close error (expected in goroutine): %v", err)
+		}
+	}()
+
+	// Call ReadStderr - should handle the write error gracefully
+	se.ReadStderr()
+}

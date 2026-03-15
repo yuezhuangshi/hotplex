@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -41,7 +43,10 @@ var (
 )
 
 func (f *PostgreFactory) Create(config PluginConfig) (ChatAppMessageStore, error) {
-	pgConfig := getPostgreConfig(config)
+	pgConfig, err := getPostgreConfig(config)
+	if err != nil {
+		return nil, fmt.Errorf("invalid PostgreSQL config: %w", err)
+	}
 	return NewPostgreStorage(pgConfig, config)
 }
 
@@ -75,7 +80,8 @@ func NewPostgreStorage(pgConfig PostgreSQLConfig, pluginConfig PluginConfig) (*P
 }
 
 // getPostgreConfig 从 PluginConfig 提取 PostgreSQL 配置
-func getPostgreConfig(config PluginConfig) PostgreSQLConfig {
+// Returns error if DSN/URL is invalid.
+func getPostgreConfig(config PluginConfig) (PostgreSQLConfig, error) {
 	getString := func(key string, def string) string {
 		if v, ok := config[key].(string); ok {
 			return v
@@ -89,6 +95,15 @@ func getPostgreConfig(config PluginConfig) PostgreSQLConfig {
 		return def
 	}
 
+	// Check for URL/DSN first (takes precedence)
+	if dsn := getString("url", ""); dsn != "" {
+		return parsePostgresDSN(dsn)
+	}
+	if dsn := getString("dsn", ""); dsn != "" {
+		return parsePostgresDSN(dsn)
+	}
+
+	// Fall back to individual fields
 	return PostgreSQLConfig{
 		Host:         getString("host", "localhost"),
 		Port:         getInt("port", 5432),
@@ -99,7 +114,63 @@ func getPostgreConfig(config PluginConfig) PostgreSQLConfig {
 		MaxOpenConns: getInt("max_open_conns", 25),
 		MaxIdleConns: getInt("max_idle_conns", 5),
 		MaxLifetime:  time.Duration(getInt("max_lifetime", 300)) * time.Second,
+	}, nil
+}
+
+// parsePostgresDSN parses a PostgreSQL connection URL/DSN into PostgreSQLConfig.
+// Returns error if DSN is invalid.
+func parsePostgresDSN(dsn string) (PostgreSQLConfig, error) {
+	cfg := PostgreSQLConfig{
+		Host:         "localhost",
+		Port:         5432,
+		User:         "hotplex",
+		Password:     "",
+		Database:     "hotplex",
+		SSLMode:      "disable",
+		MaxOpenConns: 25,
+		MaxIdleConns: 5,
+		MaxLifetime:  300 * time.Second,
 	}
+
+	// Parse as URL if it starts with postgres:// or postgresql://
+	if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
+		u, err := url.Parse(dsn)
+		if err != nil {
+			// Return error instead of silent fallback
+			return cfg, fmt.Errorf("failed to parse PostgreSQL DSN URL: %w", err)
+		}
+
+		if u.Host != "" {
+			hostParts := strings.Split(u.Host, ":")
+			cfg.Host = hostParts[0]
+			if len(hostParts) > 1 {
+				port, err := strconv.Atoi(hostParts[1])
+				if err != nil {
+					return cfg, fmt.Errorf("invalid port in DSN: %w", err)
+				}
+				cfg.Port = port
+			}
+		}
+
+		if u.User != nil {
+			cfg.User = u.User.Username()
+			if pass, ok := u.User.Password(); ok {
+				cfg.Password = pass
+			}
+		}
+
+		// Remove leading slash from path to get database name
+		if u.Path != "" && u.Path != "/" {
+			cfg.Database = strings.TrimPrefix(u.Path, "/")
+		}
+
+		// Parse query parameters
+		if sslmode := u.Query().Get("sslmode"); sslmode != "" {
+			cfg.SSLMode = sslmode
+		}
+	}
+
+	return cfg, nil
 }
 
 // Initialize 初始化数据库表结构

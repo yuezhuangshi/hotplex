@@ -2,6 +2,7 @@ package slack
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"testing"
@@ -497,5 +498,227 @@ func TestAdapter_GetThreadHistoryByUserAsString(t *testing.T) {
 	}
 	if result == "" {
 		t.Error("Expected non-empty result")
+	}
+}
+
+// Helper function
+func containsString(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
+		(len(s) > 0 && len(substr) > 0 && findSubstring(s, substr)))
+}
+
+func findSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+
+// =============================================================================
+// PostgreSQL Configuration Tests (Issue #230)
+// =============================================================================
+
+func TestAdapter_Storage_PostgreSQLWithURL(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	// Test that PostgreSQL URL is correctly configured in storage config
+	testURL := "postgres://testuser:testpass@localhost:5432/testdb?sslmode=disable"
+	adapter := NewAdapter(&Config{
+		BotToken:      "xoxb-123456-789012-abcdef123456",
+		SigningSecret: "abcdefghijklmnopqrstuvwxyz123456",
+		Mode:          "http",
+		Storage: &StorageConfig{
+			Enabled:       PtrBool(true),
+			Type:          "postgresql",
+			PostgreSQLURL: testURL,
+		},
+	}, logger, base.WithoutServer())
+	defer func() { _ = adapter.Stop() }()
+
+	// Verify storage config is properly set
+	if adapter.config.Storage == nil {
+		t.Fatal("Storage config is nil")
+	}
+	if adapter.config.Storage.Type != "postgresql" {
+		t.Errorf("Expected storage type 'postgresql', got %q", adapter.config.Storage.Type)
+	}
+	if adapter.config.Storage.PostgreSQLURL != testURL {
+		t.Errorf("Expected PostgreSQLURL %q, got %q", testURL, adapter.config.Storage.PostgreSQLURL)
+	}
+
+	// Note: storePlugin will be nil because connection fails without a real DB.
+	// DSN parsing is tested in plugins/storage/postgres_test.go.
+	if adapter.storePlugin != nil {
+		// If by chance a real DB is available, verify storePlugin is initialized
+		t.Log("PostgreSQL connection succeeded, storePlugin initialized")
+	}
+}
+
+// =============================================================================
+// Concurrent Access Tests (Issue #230 Integration)
+// =============================================================================
+
+func TestAdapter_Storage_ConcurrentStore(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	adapter := NewAdapter(&Config{
+		BotToken:      "xoxb-123456-789012-abcdef123456",
+		SigningSecret: "abcdefghijklmnopqrstuvwxyz123456",
+		Mode:          "http",
+		BotUserID:     "B123",
+		Storage: &StorageConfig{
+			Enabled: PtrBool(true),
+			Type:    "memory",
+		},
+	}, logger, base.WithoutServer())
+	defer func() { _ = adapter.Stop() }()
+
+	ctx := context.Background()
+	channelID := "C123"
+	threadTS := "1234567890.123456"
+
+	// Store messages concurrently
+	done := make(chan bool, 10)
+	for i := 0; i < 10; i++ {
+		go func(idx int) {
+			adapter.storeUserMessage(ctx, &base.ChatMessage{
+				UserID:  fmt.Sprintf("U%d", idx),
+				Content: fmt.Sprintf("Message %d", idx),
+				Metadata: map[string]any{
+					"channel_id": channelID,
+					"thread_ts":  threadTS,
+				},
+			})
+			done <- true
+		}(i)
+	}
+
+	// Wait for all goroutines
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+
+	// Verify all messages were stored
+	messages, err := adapter.GetThreadHistory(ctx, channelID, threadTS, 100)
+	if err != nil {
+		t.Fatalf("GetThreadHistory failed: %v", err)
+	}
+	if len(messages) != 10 {
+		t.Errorf("Expected 10 messages, got %d", len(messages))
+	}
+}
+
+// =============================================================================
+// Large Message Volume Tests (Issue #230 Integration)
+// =============================================================================
+
+func TestAdapter_Storage_LargeVolume(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping large volume test in short mode")
+	}
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	adapter := NewAdapter(&Config{
+		BotToken:      "xoxb-123456-789012-abcdef123456",
+		SigningSecret: "abcdefghijklmnopqrstuvwxyz123456",
+		Mode:          "http",
+		BotUserID:     "B123",
+		Storage: &StorageConfig{
+			Enabled: PtrBool(true),
+			Type:    "memory",
+		},
+	}, logger, base.WithoutServer())
+	defer func() { _ = adapter.Stop() }()
+
+	ctx := context.Background()
+	channelID := "C123"
+	threadTS := "1234567890.123456"
+
+	// Store 100 messages
+	const numMessages = 100
+	for i := 0; i < numMessages; i++ {
+		adapter.storeUserMessage(ctx, &base.ChatMessage{
+			UserID:  "U123",
+			Content: fmt.Sprintf("Message number %d", i),
+			Metadata: map[string]any{
+				"channel_id": channelID,
+				"thread_ts":  threadTS,
+			},
+		})
+	}
+
+	// Verify count with limit
+	messages, err := adapter.GetThreadHistory(ctx, channelID, threadTS, 50)
+	if err != nil {
+		t.Fatalf("GetThreadHistory failed: %v", err)
+	}
+	if len(messages) != 50 {
+		t.Errorf("Expected 50 messages (limit), got %d", len(messages))
+	}
+
+	// Verify count without limit
+	allMessages, err := adapter.GetThreadHistory(ctx, channelID, threadTS, 200)
+	if err != nil {
+		t.Fatalf("GetThreadHistory failed: %v", err)
+	}
+	if len(allMessages) != numMessages {
+		t.Errorf("Expected %d messages, got %d", numMessages, len(allMessages))
+	}
+}
+
+// =============================================================================
+// Mixed Message Types Test (Issue #230 Integration)
+// =============================================================================
+
+func TestAdapter_Storage_MixedMessageTypes(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	adapter := NewAdapter(&Config{
+		BotToken:      "xoxb-123456-789012-abcdef123456",
+		SigningSecret: "abcdefghijklmnopqrstuvwxyz123456",
+		Mode:          "http",
+		BotUserID:     "B123",
+		Storage: &StorageConfig{
+			Enabled: PtrBool(true),
+			Type:    "memory",
+		},
+	}, logger, base.WithoutServer())
+	defer func() { _ = adapter.Stop() }()
+
+	ctx := context.Background()
+	channelID := "C123"
+	threadTS := "1234567890.123456"
+
+	// Store alternating user and bot messages
+	for i := 0; i < 5; i++ {
+		adapter.storeUserMessage(ctx, &base.ChatMessage{
+			UserID:  "U123",
+			Content: fmt.Sprintf("User question %d", i),
+			Metadata: map[string]any{
+				"channel_id": channelID,
+				"thread_ts":  threadTS,
+			},
+		})
+		adapter.storeBotResponse(ctx, fmt.Sprintf("session-%d", i), channelID, threadTS, fmt.Sprintf("Bot answer %d", i))
+	}
+
+	// Retrieve all messages
+	messages, err := adapter.GetThreadHistory(ctx, channelID, threadTS, 100)
+	if err != nil {
+		t.Fatalf("GetThreadHistory failed: %v", err)
+	}
+
+	// Should have 10 messages (5 user + 5 bot)
+	if len(messages) != 10 {
+		t.Errorf("Expected 10 messages, got %d", len(messages))
+	}
+
+	// Convert to string and verify format
+	historyStr := formatMessagesAsString(messages)
+	if !containsString(historyStr, "User:") {
+		t.Error("Expected 'User:' in formatted history")
+	}
+	if !containsString(historyStr, "Assistant:") {
+		t.Error("Expected 'Assistant:' in formatted history")
 	}
 }

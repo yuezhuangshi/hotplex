@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 
@@ -284,6 +285,61 @@ func TestMemoryStorage_QueryByEngineSession(t *testing.T) {
 	}
 }
 
+// TestMemoryStorage_List_Limit tests that List respects query.Limit parameter
+func TestMemoryStorage_List_Limit(t *testing.T) {
+	factory := &MemoryFactory{}
+	store, err := factory.Create(PluginConfig{})
+	if err != nil {
+		t.Fatalf("Failed to create memory storage: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Store 10 messages
+	for i := 0; i < 10; i++ {
+		msg := &ChatAppMessage{
+			ChatSessionID:     "limit-test-session",
+			ChatPlatform:      "slack",
+			ChatUserID:        "U123456",
+			EngineSessionID:   uuid.New(),
+			ProviderSessionID: "provider-1",
+			ProviderType:      "claude-code",
+			MessageType:       "user_input",
+			Content:           fmt.Sprintf("Message %d", i),
+		}
+		err = store.StoreUserMessage(ctx, msg)
+		if err != nil {
+			t.Fatalf("Failed to store message: %v", err)
+		}
+	}
+
+	// Test with Limit = 5
+	messages, err := store.List(ctx, &MessageQuery{
+		ChatSessionID: "limit-test-session",
+		Limit:         5,
+	})
+	if err != nil {
+		t.Fatalf("Failed to list messages: %v", err)
+	}
+
+	if len(messages) != 5 {
+		t.Errorf("Expected 5 messages with limit, got %d", len(messages))
+	}
+
+	// Test with Limit = 0 (should return all)
+	messages, err = store.List(ctx, &MessageQuery{
+		ChatSessionID: "limit-test-session",
+		Limit:         0,
+	})
+	if err != nil {
+		t.Fatalf("Failed to list messages: %v", err)
+	}
+
+	if len(messages) != 10 {
+		t.Errorf("Expected 10 messages with no limit, got %d", len(messages))
+	}
+}
+
 // TestMessageType_IsStorable tests IsStorable functionality
 func TestMessageType_IsStorable(t *testing.T) {
 	// Test with types package if available
@@ -398,4 +454,45 @@ func BenchmarkMemoryStorage_ConcurrentWrite(b *testing.B) {
 			i++
 		}
 	})
+}
+
+// TestMemoryStorage_List_NegativeLimit tests List with negative limit
+func TestMemoryStorage_List_NegativeLimit(t *testing.T) {
+	factory := &MemoryFactory{}
+	store, err := factory.Create(PluginConfig{})
+	if err != nil {
+		t.Fatalf("Failed to create memory storage: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Store a message
+	msg := &ChatAppMessage{
+		ChatSessionID:     "neg-limit-test",
+		ChatPlatform:      "slack",
+		ChatUserID:        "U123456",
+		EngineSessionID:   uuid.New(),
+		ProviderSessionID: "provider-1",
+		ProviderType:      "claude-code",
+		MessageType:       "user_input",
+		Content:           "Test message",
+	}
+	err = store.StoreUserMessage(ctx, msg)
+	if err != nil {
+		t.Fatalf("Failed to store message: %v", err)
+	}
+
+	// Test with negative limit - should return all messages
+	messages, err := store.List(ctx, &MessageQuery{
+		ChatSessionID: "neg-limit-test",
+		Limit:         -1,
+	})
+	if err != nil {
+		t.Fatalf("Failed to list messages: %v", err)
+	}
+
+	// Negative limit should return all (or treated as no limit)
+	if len(messages) != 1 {
+		t.Errorf("Expected 1 message with negative limit, got %d", len(messages))
+	}
 }
