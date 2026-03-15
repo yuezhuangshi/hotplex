@@ -239,15 +239,18 @@ func (sm *SessionPool) startSession(ctx context.Context, sessionID string, cfg S
 	// Use direct string concatenation for better performance
 	uniqueStr := sm.opts.Namespace + ":session:" + sessionID
 	// Check if session needs new ProviderSessionID (for /clear command)
+	// Use a function to ensure lock is always released via defer
 	var providerSessionID string
 	var oldProviderSessionID string // Track old ID for cleanup
-	var needsReset bool
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
-	needsReset = sm.resetSessions[sessionID]
-	if needsReset {
-		delete(sm.resetSessions, sessionID) // Clear the flag
-	}
+	needsReset := func() bool {
+		sm.mu.Lock()
+		defer sm.mu.Unlock()
+		needsReset := sm.resetSessions[sessionID]
+		if needsReset {
+			delete(sm.resetSessions, sessionID) // Clear the flag
+		}
+		return needsReset
+	}()
 
 	if needsReset {
 		// Calculate old ID for cleanup
