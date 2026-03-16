@@ -1,5 +1,34 @@
 # CHANGELOG.md
 
+## [v0.30.0] - 2026-03-16
+
+### Added
+- **Unified Configuration System** - Single Source of Truth (SSOT) configuration architecture:
+  - Configuration inheritance via `inherits` field (relative path resolution)
+  - Environment variable expansion in YAML (`${VAR}` syntax)
+  - Instance isolation with per-bot config directories
+  - Circular inheritance detection with informative errors
+  - Deep merge for nested configuration objects
+  - Role templates in `configs/templates/roles/` (go, frontend, devops, custom)
+  - Admin bot configuration in `configs/admin/`
+
+### Changed
+- **Configuration File Structure** - Reorganized for clarity and maintainability:
+  - `configs/base/` - Base configurations (SSOT)
+  - `configs/admin/` - Admin bot overrides
+  - `configs/templates/` - Role templates for new instances
+  - `configs/chatapps/` removed (replaced by `configs/base/`)
+
+### Fixed
+- **Dockerfile Naming** - Renamed `Dockerfile.go` to `Dockerfile.golang` to avoid Go parser conflict
+- **Skills Paths** - Updated to use portable `~/hotplex/` paths for multi-developer support
+
+### Documentation
+- **PIP_TOOLS Extension Guide** - Added technical documentation for dynamic Python package installation
+- **Configuration Design Spec** - Comprehensive design document in `docs/superpowers/specs/`
+
+---
+
 ## [v0.29.0] - 2026-03-15
 
 ### Added
