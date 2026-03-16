@@ -651,3 +651,46 @@ func assertContains(t *testing.T, slice []string, want string) {
 	}
 	t.Errorf("slice %v does not contain %q", slice, want)
 }
+
+func TestToWorkspaceKey(t *testing.T) {
+	tests := []struct {
+		name     string
+		cwd      string
+		expected string
+	}{
+		{
+			name:     "hidden directory in path",
+			cwd:      "/Users/huangzhonghui/.hotplex/projects/hotplex",
+			expected: "-Users-huangzhonghui--hotplex-projects-hotplex",
+		},
+		{
+			name:     "no hidden directories",
+			cwd:      "/Users/huangzhonghui/projects/myapp",
+			expected: "-Users-huangzhonghui-projects-myapp",
+		},
+		{
+			name:     "multiple hidden directories",
+			cwd:      "/Users/test/.config/.cache/app",
+			expected: "-Users-test--config--cache-app",
+		},
+		{
+			name:     "hidden directory at end",
+			cwd:      "/home/user/projects/.hidden",
+			expected: "-home-user-projects--hidden",
+		},
+		{
+			name:     "simple path",
+			cwd:      "/home/user/app",
+			expected: "-home-user-app",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := toWorkspaceKey(tt.cwd)
+			if got != tt.expected {
+				t.Errorf("toWorkspaceKey(%q) = %q, want %q", tt.cwd, got, tt.expected)
+			}
+		})
+	}
+}

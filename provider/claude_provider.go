@@ -14,6 +14,16 @@ import (
 	"github.com/hrygo/hotplex/internal/persistence"
 )
 
+// toWorkspaceKey converts a working directory path to Claude Code's workspace key format.
+// Claude Code uses this format to create project-specific directories in ~/.claude/projects/.
+// Algorithm: Replace "/." (hidden directories) with "--" first, then replace "/" with "-".
+// Example: "/Users/user/.hotplex/projects/app" -> "-Users-user--hotplex-projects-app"
+func toWorkspaceKey(cwd string) string {
+	// First replace "/." with "--" to handle hidden directories like .hotplex
+	// Then replace "/" with "-" to flatten the path
+	return strings.ReplaceAll(strings.ReplaceAll(cwd, "/.", "--"), "/", "-")
+}
+
 // isValidSessionID checks if a session ID is safe to use in file paths.
 // It blocks obvious path traversal attempts while allowing test IDs.
 // A valid session ID must:
@@ -499,7 +509,7 @@ func (p *ClaudeCodeProvider) CleanupSession(providerSessionID string, workDir st
 		return fmt.Errorf("get home directory: %w", err)
 	}
 	projectsDir := filepath.Join(homeDir, ".claude", "projects")
-	workspaceKey := strings.ReplaceAll(cwd, "/", "-")
+	workspaceKey := toWorkspaceKey(cwd)
 	sessionPath := filepath.Join(projectsDir, workspaceKey, providerSessionID+".jsonl")
 
 	// SECURITY: Verify the resolved path is still within projectsDir (prevent path traversal)
@@ -559,7 +569,7 @@ func (p *ClaudeCodeProvider) VerifySession(providerSessionID string, workDir str
 		return false
 	}
 	projectsDir := filepath.Join(homeDir, ".claude", "projects")
-	workspaceKey := strings.ReplaceAll(cwd, "/", "-")
+	workspaceKey := toWorkspaceKey(cwd)
 	sessionPath := filepath.Join(projectsDir, workspaceKey, providerSessionID+".jsonl")
 
 	// SECURITY: Verify the resolved path is still within projectsDir (prevent path traversal)

@@ -200,7 +200,7 @@ func TestSessionPool_buildCLIArgs_Resume(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get current directory: %v", err)
 	}
-	workspaceKey := strings.ReplaceAll(cwd, "/", "-")
+	workspaceKey := strings.ReplaceAll(strings.ReplaceAll(cwd, "/.", "--"), "/", "-")
 	projectsDir := filepath.Join(homeDir, ".claude", "projects")
 	sessionPath := filepath.Join(projectsDir, workspaceKey, testSessionUUID+".jsonl")
 
