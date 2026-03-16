@@ -25,8 +25,8 @@ func TestHandleBlockActions(t *testing.T) {
 	adapter := newTestAdapter()
 
 	callback := &SlackInteractionCallback{
-		Type:  "block_actions",
-		User:  CallbackUser{ID: "U123"},
+		Type:    "block_actions",
+		User:    CallbackUser{ID: "U123"},
 		Channel: CallbackChannel{ID: "C123"},
 		Actions: []SlackAction{
 			{ActionID: "test_action", BlockID: "block1", Value: "test_value"},
@@ -43,8 +43,8 @@ func TestHandleBlockActions_Permission(t *testing.T) {
 	adapter := newTestAdapter()
 
 	callback := &SlackInteractionCallback{
-		Type:  "block_actions",
-		User:  CallbackUser{ID: "U123"},
+		Type:    "block_actions",
+		User:    CallbackUser{ID: "U123"},
 		Channel: CallbackChannel{ID: "C123"},
 		Actions: []SlackAction{
 			{ActionID: "perm_allow:session123:msg123", Value: "allow"},
@@ -61,8 +61,8 @@ func TestHandleBlockActions_PlanMode(t *testing.T) {
 	adapter := newTestAdapter()
 
 	callback := &SlackInteractionCallback{
-		Type:  "block_actions",
-		User:  CallbackUser{ID: "U123"},
+		Type:    "block_actions",
+		User:    CallbackUser{ID: "U123"},
 		Channel: CallbackChannel{ID: "C123"},
 		Actions: []SlackAction{
 			{ActionID: "plan_approve", Value: "approved"},
@@ -79,8 +79,8 @@ func TestHandleBlockActions_Danger(t *testing.T) {
 	adapter := newTestAdapter()
 
 	callback := &SlackInteractionCallback{
-		Type:  "block_actions",
-		User:  CallbackUser{ID: "U123"},
+		Type:    "block_actions",
+		User:    CallbackUser{ID: "U123"},
 		Channel: CallbackChannel{ID: "C123"},
 		Actions: []SlackAction{
 			{ActionID: "danger_confirm", Value: "confirm"},
@@ -97,8 +97,8 @@ func TestHandleBlockActions_Question(t *testing.T) {
 	adapter := newTestAdapter()
 
 	callback := &SlackInteractionCallback{
-		Type:  "block_actions",
-		User:  CallbackUser{ID: "U123"},
+		Type:    "block_actions",
+		User:    CallbackUser{ID: "U123"},
 		Channel: CallbackChannel{ID: "C123"},
 		Actions: []SlackAction{
 			{ActionID: "question_option_yes", Value: "yes"},
@@ -115,8 +115,8 @@ func TestHandleBlockActions_Unhandled(t *testing.T) {
 	adapter := newTestAdapter()
 
 	callback := &SlackInteractionCallback{
-		Type:  "block_actions",
-		User:  CallbackUser{ID: "U123"},
+		Type:    "block_actions",
+		User:    CallbackUser{ID: "U123"},
 		Channel: CallbackChannel{ID: "C123"},
 		Actions: []SlackAction{
 			{ActionID: "unknown_action", Value: "value"},
@@ -340,4 +340,5 @@ func TestHandleAskUserQuestionCallback_No(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 }
+
 // Trigger CI

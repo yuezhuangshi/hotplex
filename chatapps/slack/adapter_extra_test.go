@@ -21,12 +21,12 @@ func TestAdapter_stripBotMention(t *testing.T) {
 		Mode:          "http",
 		BotUserID:     "U123",
 	}, logger, base.WithoutServer())
-	
+
 	// Test with bot mention
 	text := "<@U123> hello"
 	result := adapter.stripBotMention(text)
 	assert.Equal(t, "hello", result)
-	
+
 	// Test without bot mention
 	text2 := "hello world"
 	result2 := adapter.stripBotMention(text2)

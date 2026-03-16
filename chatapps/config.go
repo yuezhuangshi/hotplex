@@ -17,18 +17,19 @@ import (
 )
 
 type PlatformConfig struct {
-	Platform         string                  `yaml:"platform"`
-	Mode             string                  `yaml:"mode"`
-	SystemPrompt     string                  `yaml:"system_prompt"`
-	TaskInstructions string                  `yaml:"task_instructions"`
-	Engine           EngineConfig            `yaml:"engine"`
-	Provider         provider.ProviderConfig `yaml:"provider"`
-	Security         SecurityConfig          `yaml:"security"`
-	Features         FeaturesConfig          `yaml:"features"`
-	Session          SessionConfig           `yaml:"session"`
-	MessageStore     MessageStoreConfig      `yaml:"message_store,omitempty"`
-	Options          map[string]any          `yaml:"options,omitempty"`
-	SourceFile       string                  `yaml:"-"` // Tracks which file this config was loaded from
+	Inherits        string                  `yaml:"inherits"`  // Path to parent config file (relative or absolute)
+	Platform        string                  `yaml:"platform"`
+	Mode            string                  `yaml:"mode"`
+	SystemPrompt    string                  `yaml:"system_prompt"`
+	TaskInstructions string                 `yaml:"task_instructions"`
+	Engine          EngineConfig            `yaml:"engine"`
+	Provider        provider.ProviderConfig `yaml:"provider"`
+	Security        SecurityConfig          `yaml:"security"`
+	Features        FeaturesConfig          `yaml:"features"`
+	Session         SessionConfig           `yaml:"session"`
+	MessageStore    MessageStoreConfig      `yaml:"message_store,omitempty"`
+	Options         map[string]any          `yaml:"options,omitempty"`
+	SourceFile      string                  `yaml:"-"` // Tracks which file this config was loaded from
 }
 
 type SecurityConfig struct {
@@ -229,6 +230,356 @@ func expandTilde(path string) string {
 	return path
 }
 
+// mergeConfigs performs a deep merge of child config into parent.
+// Child values take precedence over parent values.
+// This implements the inheritance semantics where child config overrides parent.
+func mergeConfigs(parent, child *PlatformConfig) *PlatformConfig {
+	if parent == nil {
+		return child
+	}
+	if child == nil {
+		return parent
+	}
+
+	// Start with a copy of parent
+	result := *parent
+
+	// Override with non-zero values from child
+	if child.Platform != "" {
+		result.Platform = child.Platform
+	}
+	if child.Mode != "" {
+		result.Mode = child.Mode
+	}
+	if child.SystemPrompt != "" {
+		result.SystemPrompt = child.SystemPrompt
+	}
+	if child.TaskInstructions != "" {
+		result.TaskInstructions = child.TaskInstructions
+	}
+	if child.SourceFile != "" {
+		result.SourceFile = child.SourceFile
+	}
+
+	// Merge Engine config
+	result.Engine = mergeEngineConfig(parent.Engine, child.Engine)
+
+	// Merge Provider config
+	result.Provider = mergeProviderConfig(parent.Provider, child.Provider)
+
+	// Merge Security config
+	result.Security = mergeSecurityConfig(parent.Security, child.Security)
+
+	// Merge Features config
+	result.Features = mergeFeaturesConfig(parent.Features, child.Features)
+
+	// Merge Session config
+	result.Session = mergeSessionConfig(parent.Session, child.Session)
+
+	// Merge MessageStore config
+	result.MessageStore = mergeMessageStoreConfig(parent.MessageStore, child.MessageStore)
+
+	// Merge Options map (child overrides parent keys)
+	if child.Options != nil {
+		if result.Options == nil {
+			result.Options = make(map[string]any)
+		}
+		for k, v := range child.Options {
+			result.Options[k] = v
+		}
+	}
+
+	return &result
+}
+
+func mergeEngineConfig(parent, child EngineConfig) EngineConfig {
+	result := parent
+	if child.Timeout != 0 {
+		result.Timeout = child.Timeout
+	}
+	if child.IdleTimeout != 0 {
+		result.IdleTimeout = child.IdleTimeout
+	}
+	if child.WorkDir != "" {
+		result.WorkDir = child.WorkDir
+	}
+	if child.AllowedTools != nil {
+		result.AllowedTools = child.AllowedTools
+	}
+	if child.DisallowedTools != nil {
+		result.DisallowedTools = child.DisallowedTools
+	}
+	return result
+}
+
+func mergeProviderConfig(parent, child provider.ProviderConfig) provider.ProviderConfig {
+	result := parent
+	if child.Type != "" {
+		result.Type = child.Type
+	}
+	if child.Enabled != nil {
+		result.Enabled = child.Enabled
+	}
+	if child.DefaultModel != "" {
+		result.DefaultModel = child.DefaultModel
+	}
+	if child.DefaultPermissionMode != "" {
+		result.DefaultPermissionMode = child.DefaultPermissionMode
+	}
+	if child.DangerouslySkipPermissions != nil {
+		result.DangerouslySkipPermissions = child.DangerouslySkipPermissions
+	}
+	if child.AllowedTools != nil {
+		result.AllowedTools = child.AllowedTools
+	}
+	if child.DisallowedTools != nil {
+		result.DisallowedTools = child.DisallowedTools
+	}
+	if child.BinaryPath != "" {
+		result.BinaryPath = child.BinaryPath
+	}
+	if child.ExtraArgs != nil {
+		result.ExtraArgs = child.ExtraArgs
+	}
+	if child.ExtraEnv != nil {
+		result.ExtraEnv = child.ExtraEnv
+	}
+	if child.Timeout != 0 {
+		result.Timeout = child.Timeout
+	}
+	if child.OpenCode != nil {
+		result.OpenCode = child.OpenCode
+	}
+	if child.Pi != nil {
+		result.Pi = child.Pi
+	}
+	return result
+}
+
+func mergeSecurityConfig(parent, child SecurityConfig) SecurityConfig {
+	result := parent
+
+	// VerifySignature: child takes precedence if set
+	if child.VerifySignature != nil {
+		result.VerifySignature = child.VerifySignature
+	}
+
+	// Permission: merge fields
+	result.Permission = mergePermissionConfig(parent.Permission, child.Permission)
+
+	// Owner: child takes precedence if set
+	if child.Owner != nil {
+		result.Owner = child.Owner
+	}
+
+	return result
+}
+
+func mergePermissionConfig(parent, child PermissionConfig) PermissionConfig {
+	result := parent
+	if child.DMPolicy != "" {
+		result.DMPolicy = child.DMPolicy
+	}
+	if child.GroupPolicy != "" {
+		result.GroupPolicy = child.GroupPolicy
+	}
+	if child.BotUserID != "" {
+		result.BotUserID = child.BotUserID
+	}
+	if child.BroadcastResponse != "" {
+		result.BroadcastResponse = child.BroadcastResponse
+	}
+	if child.AllowedUsers != nil {
+		result.AllowedUsers = child.AllowedUsers
+	}
+	if child.BlockedUsers != nil {
+		result.BlockedUsers = child.BlockedUsers
+	}
+	if child.SlashCommandRateLimit != 0 {
+		result.SlashCommandRateLimit = child.SlashCommandRateLimit
+	}
+	if child.ThreadOwnership != nil {
+		result.ThreadOwnership = child.ThreadOwnership
+	}
+	return result
+}
+
+func mergeFeaturesConfig(parent, child FeaturesConfig) FeaturesConfig {
+	result := parent
+	result.Chunking = mergeChunkingConfig(parent.Chunking, child.Chunking)
+	result.Threading = mergeThreadingConfig(parent.Threading, child.Threading)
+	result.RateLimit = mergeRateLimitConfig(parent.RateLimit, child.RateLimit)
+	result.Markdown = mergeMarkdownConfig(parent.Markdown, child.Markdown)
+	return result
+}
+
+func mergeChunkingConfig(parent, child ChunkingConfig) ChunkingConfig {
+	result := parent
+	if child.Enabled != nil {
+		result.Enabled = child.Enabled
+	}
+	if child.MaxChars != 0 {
+		result.MaxChars = child.MaxChars
+	}
+	return result
+}
+
+func mergeThreadingConfig(parent, child ThreadingConfig) ThreadingConfig {
+	result := parent
+	if child.Enabled != nil {
+		result.Enabled = child.Enabled
+	}
+	return result
+}
+
+func mergeRateLimitConfig(parent, child RateLimitConfig) RateLimitConfig {
+	result := parent
+	if child.Enabled != nil {
+		result.Enabled = child.Enabled
+	}
+	if child.MaxAttempts != 0 {
+		result.MaxAttempts = child.MaxAttempts
+	}
+	if child.BaseDelayMs != 0 {
+		result.BaseDelayMs = child.BaseDelayMs
+	}
+	if child.MaxDelayMs != 0 {
+		result.MaxDelayMs = child.MaxDelayMs
+	}
+	return result
+}
+
+func mergeMarkdownConfig(parent, child MarkdownConfig) MarkdownConfig {
+	result := parent
+	if child.Enabled != nil {
+		result.Enabled = child.Enabled
+	}
+	return result
+}
+
+func mergeSessionConfig(parent, child SessionConfig) SessionConfig {
+	result := parent
+	if child.Timeout != 0 {
+		result.Timeout = child.Timeout
+	}
+	if child.CleanupInterval != 0 {
+		result.CleanupInterval = child.CleanupInterval
+	}
+	return result
+}
+
+func mergeMessageStoreConfig(parent, child MessageStoreConfig) MessageStoreConfig {
+	result := parent
+	if child.Enabled != nil {
+		result.Enabled = child.Enabled
+	}
+	if child.Type != "" {
+		result.Type = child.Type
+	}
+	if child.Strategy != "" {
+		result.Strategy = child.Strategy
+	}
+	// Merge SQLite config
+	if child.SQLite.Path != "" {
+		result.SQLite.Path = child.SQLite.Path
+	}
+	if child.SQLite.MaxSizeMB != 0 {
+		result.SQLite.MaxSizeMB = child.SQLite.MaxSizeMB
+	}
+	// Merge Postgres config
+	if child.Postgres.DSN != "" {
+		result.Postgres.DSN = child.Postgres.DSN
+	}
+	if child.Postgres.MaxConnections != 0 {
+		result.Postgres.MaxConnections = child.Postgres.MaxConnections
+	}
+	if child.Postgres.Level != 0 {
+		result.Postgres.Level = child.Postgres.Level
+	}
+	// Merge Streaming config
+	result.Streaming = mergeStreamingConfig(parent.Streaming, child.Streaming)
+	return result
+}
+
+func mergeStreamingConfig(parent, child StreamingConfig) StreamingConfig {
+	result := parent
+	if child.Enabled != nil {
+		result.Enabled = child.Enabled
+	}
+	if child.BufferSize != 0 {
+		result.BufferSize = child.BufferSize
+	}
+	if child.Timeout != 0 {
+		result.Timeout = child.Timeout
+	}
+	if child.StoragePolicy != "" {
+		result.StoragePolicy = child.StoragePolicy
+	}
+	return result
+}
+
+// loadConfigWithInheritance loads a config file and recursively resolves inheritance.
+// loadedFiles tracks already-loaded files to detect circular inheritance.
+func (c *ConfigLoader) loadConfigWithInheritance(filename string, loadedFiles map[string]struct{}) (*PlatformConfig, error) {
+	// Resolve to absolute path for consistent cycle detection
+	absPath, err := filepath.Abs(filename)
+	if err != nil {
+		return nil, fmt.Errorf("resolve absolute path: %w", err)
+	}
+
+	// Check for circular inheritance
+	if _, exists := loadedFiles[absPath]; exists {
+		return nil, fmt.Errorf("circular inheritance detected: %s", absPath)
+	}
+	loadedFiles[absPath] = struct{}{}
+
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, fmt.Errorf("read config file: %w", err)
+	}
+
+	// Expand environment variables
+	expanded := expandEnvRecursive(string(data))
+
+	var cfg PlatformConfig
+	if err := yaml.Unmarshal([]byte(expanded), &cfg); err != nil {
+		return nil, fmt.Errorf("parse config file: %w", err)
+	}
+	cfg.SourceFile = filename
+
+	// If no inheritance, return as-is
+	if cfg.Inherits == "" {
+		return &cfg, nil
+	}
+
+	// Resolve inherits path relative to current config file's directory
+	baseDir := filepath.Dir(filename)
+	inheritsPath := cfg.Inherits
+	if !filepath.IsAbs(inheritsPath) {
+		inheritsPath = filepath.Join(baseDir, inheritsPath)
+	}
+
+	c.logger.Debug("Loading inherited config",
+		"child", filename,
+		"parent", inheritsPath)
+
+	// Recursively load parent config
+	parent, err := c.loadConfigWithInheritance(inheritsPath, loadedFiles)
+	if err != nil {
+		return nil, fmt.Errorf("load inherited config %s: %w", inheritsPath, err)
+	}
+
+	// Merge: child values override parent values
+	merged := mergeConfigs(parent, &cfg)
+
+	c.logger.Debug("Config inheritance resolved",
+		"child", filename,
+		"parent", inheritsPath,
+		"platform", merged.Platform)
+
+	return merged, nil
+}
+
 func (c *ConfigLoader) Load(configDir string) error {
 	entries, err := os.ReadDir(configDir)
 	if err != nil {
@@ -241,21 +592,14 @@ func (c *ConfigLoader) Load(configDir string) error {
 		}
 
 		filename := filepath.Join(configDir, entry.Name())
-		data, err := os.ReadFile(filename)
+
+		// Use inheritance-aware config loading
+		loadedFiles := make(map[string]struct{})
+		cfg, err := c.loadConfigWithInheritance(filename, loadedFiles)
 		if err != nil {
-			c.logger.Debug("Could not read config file, skipping", "file", filename, "cause", err)
+			c.logger.Warn("Failed to load config file", "file", filename, "error", err)
 			continue
 		}
-
-		// Expand environment variables in config file with recursive expansion support
-		expanded := expandEnvRecursive(string(data))
-
-		var cfg PlatformConfig
-		if err := yaml.Unmarshal([]byte(expanded), &cfg); err != nil {
-			c.logger.Warn("Failed to parse config file", "file", filename, "error", err)
-			continue
-		}
-		cfg.SourceFile = filename
 
 		if cfg.Platform == "" {
 			c.logger.Warn("Config missing platform field", "file", filename)
@@ -263,7 +607,7 @@ func (c *ConfigLoader) Load(configDir string) error {
 		}
 
 		c.mu.Lock()
-		c.configs[cfg.Platform] = &cfg
+		c.configs[cfg.Platform] = cfg
 		c.mu.Unlock()
 		c.logger.Info("Loaded platform configuration", "platform", cfg.Platform, "file", filename)
 	}

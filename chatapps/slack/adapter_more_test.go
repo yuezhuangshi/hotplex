@@ -42,11 +42,11 @@ func TestAdapter_SendThreadReply(t *testing.T) {
 
 func TestAdapter_shouldRespondToThreadMessage(t *testing.T) {
 	adapter := newTestAdapter()
-	
+
 	// Test when user is bot itself
 	result, _ := adapter.shouldRespondToThreadMessage("channel", "C123", "1234567890.123456", "hello", "U123")
 	assert.False(t, result)
-	
+
 	// Test with valid user
 	adapter2 := newTestAdapter()
 	result2, _ := adapter2.shouldRespondToThreadMessage("channel", "C123", "1234567890.123456", "hello", "U456")
@@ -61,7 +61,7 @@ func TestAdapter_initAppHome(t *testing.T) {
 		SigningSecret: "test-secret",
 		Mode:          "http",
 	}, logger, base.WithoutServer())
-	
+
 	// Test with nil appHomeHandler (should not panic)
 	adapter.initAppHome()
 }

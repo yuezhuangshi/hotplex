@@ -1,177 +1,220 @@
 ---
 name: HotPlex Data Management
-description: This skill should be used when the user asks to "manage data", "clean sessions", "cleanup markers", "view messages", "export data", "delete session". Provides data and session management for hotplex persistence layer.
-version: 0.1.0
+description: Use this skill when the user asks to "manage data", "clean sessions", "cleanup markers", "view messages", "export data", "delete session", "message database", "session cleanup". Provides data and session management for hotplex persistence layer.
+version: 0.2.0
 ---
 
 # HotPlex Data Management
 
 Manage persistent data including session markers, messages, and temporary files.
 
-## Overview
+## Critical: Working Directory
 
-This skill provides data management capabilities for hotplex persistence layer. It handles session markers, message storage, and cleanup operations.
+**All docker compose commands MUST be executed from the compose directory.**
 
-## Prerequisites
+```bash
+COMPOSE_DIR="~/hotplex/docker/matrix"
+```
 
-- HotPlex deployed and running
-- Access to host's `.hotplex` directory
-- Docker CLI for container file access
+**Pattern**: Always prefix docker compose commands with `cd $COMPOSE_DIR &&`:
+```bash
+cd ~/hotplex/docker/matrix && docker compose ps
+```
+
+## Container Reference
+
+| Container | Bot ID | Instance Path |
+|:----------|:-------|:--------------|
+| hotplex-01 | U0AHRCL1KCM | ~/.hotplex/instances/U0AHRCL1KCM |
+| hotplex-02 | U0AJVRH4YF6 | ~/.hotplex/instances/U0AJVRH4YF6 |
+| hotplex-03 | U0AL7H8UU75 | ~/.hotplex/instances/U0AL7H8UU75 |
 
 ## Session Markers
 
 ### List Session Markers
 
-List all persistent session markers:
-
 ```bash
-ls -la ~/.hotplex/markers/
+# Host side (direct access)
+ls -la ~/.hotplex/instances/U0AHRCL1KCM/markers/
+
+# Container side
+docker exec hotplex-01 ls -la /home/hotplex/.hotplex/markers/
 ```
 
 ### Delete a Session Marker
 
-Remove a specific session marker to prevent resumption:
-
 ```bash
-rm ~/.hotplex/markers/<provider-session-id>
+# Host side
+rm ~/.hotplex/instances/U0AHRCL1KCM/markers/<provider-session-id>
+
+# Container side
+docker exec hotplex-01 rm /home/hotplex/.hotplex/markers/<provider-session-id>
 ```
 
-### Delete All Markers
-
-Remove all session markers (forces fresh start):
+### Delete All Markers for a Bot
 
 ```bash
-rm ~/.hotplex/markers/*
+docker exec hotplex-01 rm -rf /home/hotplex/.hotplex/markers/*
+```
+
+### Clean Old Markers (24h+)
+
+```bash
+docker exec hotplex-01 find /home/hotplex/.hotplex/markers -type f -mtime +1 -delete
 ```
 
 ## Message Storage
 
-### Locate Message Database
-
-Find message storage location:
-
-```bash
-docker exec hotplex ls -la /home/hotplex/.hotplex/
-```
-
 ### Check Database Size
 
-View database file sizes:
+```bash
+docker exec hotplex-01 du -sh /home/hotplex/.hotplex/*.db
+docker exec hotplex-01 ls -lh /home/hotplex/.hotplex/
+```
+
+### Query Messages (SQLite)
 
 ```bash
-docker exec hotplex du -sh /home/hotplex/.hotplex/*.db
-docker exec hotplex du -sh /home/hotplex/.hotplex/*
+# 按会话统计消息数
+docker exec hotplex-01 sqlite3 /home/hotplex/.hotplex/chatapp_messages.db \
+  "SELECT session_id, COUNT(*) as msg_count FROM messages GROUP BY session_id ORDER BY msg_count DESC LIMIT 10"
+
+# 按日期统计
+docker exec hotplex-01 sqlite3 /home/hotplex/.hotplex/chatapp_messages.db \
+  "SELECT date(created_at) as date, COUNT(*) as count FROM messages GROUP BY date ORDER BY date DESC LIMIT 7"
+
+# 查看表结构
+docker exec hotplex-01 sqlite3 /home/hotplex/.hotplex/chatapp_messages.db ".schema"
 ```
 
 ### Export Messages
 
-Export messages from database (requires sqlite3):
+```bash
+# Export to CSV
+docker exec hotplex-01 sqlite3 /home/hotplex/.hotplex/chatapp_messages.db \
+  -csv -header "SELECT * FROM messages LIMIT 100" > /tmp/messages_export.csv
+
+# Export to host
+docker cp hotplex-01:/home/hotplex/.hotplex/chatapp_messages.db /tmp/messages_backup.db
+```
+
+## Session Cleanup
+
+### Force Stop All CLI Processes in Container
 
 ```bash
-docker exec hotplex sqlite3 /home/hotplex/.hotplex/messages.db "SELECT * FROM messages LIMIT 100;"
+docker exec hotplex-01 pkill -f "claude\|opencode"
+```
+
+### Clean Zombie Sessions
+
+```bash
+# Find zombie markers (older than 1 hour)
+docker exec hotplex-01 find /home/hotplex/.hotplex/markers -type f -mmin +60
+
+# Remove markers older than 24 hours
+docker exec hotplex-01 find /home/hotplex/.hotplex/markers -type f -mtime +1 -delete
 ```
 
 ## Temporary Files
 
 ### Clean Claude Cache
 
-Remove cached CLI data:
-
 ```bash
-docker exec hotplex rm -rf /home/hotplex/.claude/sessions/*
+docker exec hotplex-01 rm -rf /home/hotplex/.claude/sessions/*
 ```
 
-### Clean Temporary Work Directories
-
-Remove temporary work directories:
+### Clean Temp Directories
 
 ```bash
-docker exec hotplex rm -rf /tmp/hotplex_*
-```
-
-### Clean Build Cache
-
-Remove Go build cache:
-
-```bash
-docker exec hotplex go clean -cache
-```
-
-## Session Cleanup
-
-### Force Stop All Sessions
-
-Stop all running CLI processes:
-
-```bash
-docker exec hotplex pkill -f "claude\|opencode"
-```
-
-### Clean Zombie Sessions
-
-Remove stale session markers and processes:
-
-```bash
-# Find zombie markers
-docker exec hotplex find /home/hotplex/.hotplex/markers -type f -mmin +60
-
-# Remove markers older than 24 hours
-docker exec hotplex find /home/hotplex/.hotplex/markers -type f -mtime +1 -delete
+docker exec hotplex-01 rm -rf /tmp/hotplex_*
 ```
 
 ## Backup and Restore
 
-### Backup Data
-
-Create backup of hotplex data:
+### Backup Single Instance
 
 ```bash
-tar -czf hotplex-backup-$(date +%Y%m%d).tar.gz \
-  -C ~ .hotplex .claude
+# Backup from host
+tar -czf hotplex-backup-U0AHRCL1KCM-$(date +%Y%m%d).tar.gz \
+  -C ~/.hotplex/instances U0AHRCL1KCM
+
+# Backup from container
+docker exec hotplex-01 tar -czf /tmp/backup.tar.gz -C /home/hotplex .hotplex
+docker cp hotplex-01:/tmp/backup.tar.gz ./hotplex-backup-$(date +%Y%m%d).tar.gz
 ```
 
-### Restore Data
-
-Restore from backup:
+### Restore to Instance
 
 ```bash
-tar -xzf hotplex-backup-20240101.tar.gz -C ~
+# Restore to host
+tar -xzf hotplex-backup-U0AHRCL1KCM-20240101.tar.gz -C ~/.hotplex/instances/
+
+# Restart container to pick up changes
+cd ~/hotplex/docker/matrix && docker compose restart hotplex-01
 ```
 
-## Configuration
+## All-Bot Operations
 
-Data directories:
-- `~/.hotplex/` - Message database and session markers
-- `~/.claude/` - Claude CLI session state
-- `/tmp/hotplex_*/` - Temporary work directories
+### Clean All Markers (All Bots)
+
+```bash
+for bot in hotplex-01 hotplex-02 hotplex-03; do
+  echo "Cleaning $bot..."
+  docker exec $bot rm -rf /home/hotplex/.hotplex/markers/*
+done
+```
+
+### Backup All Instances
+
+```bash
+tar -czf hotplex-all-backup-$(date +%Y%m%d).tar.gz \
+  -C ~/.hotplex/instances .
+```
+
+### Check All Database Sizes
+
+```bash
+for bot in hotplex-01 hotplex-02 hotplex-03; do
+  echo "=== $bot ==="
+  docker exec $bot du -sh /home/hotplex/.hotplex/*.db 2>/dev/null || echo "No database"
+done
+```
 
 ## Troubleshooting
 
 ### Disk Full
 
-Check disk usage:
-
 ```bash
 df -h ~
 docker system df
+docker exec hotplex-01 df -h /home/hotplex
 ```
 
 ### Permission Issues
 
-Fix ownership:
+```bash
+sudo chown -R $(id -u):$(id -g) ~/.hotplex/instances/U0AHRCL1KCM
+```
+
+## Container Discovery
+
+If user doesn't specify which bot:
 
 ```bash
-sudo chown -R $(id -u):$(id -g) ~/.hotplex ~/.claude
+cd ~/hotplex/docker/matrix && docker compose ps
 ```
+
+Then use the container name (hotplex-01, hotplex-02, or hotplex-03) in subsequent commands.
 
 ## Additional Resources
 
 ### Reference Files
 
-- **`internal/persistence/marker.go`** - Marker store implementation
-- **`plugins/storage/`** - Message storage backends
+- `internal/persistence/marker.go` - Marker store implementation
+- `plugins/storage/` - Message storage backends
 
 ### Related Skills
 
-- **`docker-container-ops`** - For container lifecycle management
-- **`hotplex-diagnostics`** - For monitoring and debugging
+- `docker-container-ops` - For container lifecycle management
+- `hotplex-diagnostics` - For monitoring and debugging

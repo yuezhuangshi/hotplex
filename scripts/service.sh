@@ -33,12 +33,12 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 if [[ "$(uname -s)" == "Darwin" ]]; then
     # macOS: Use user-local paths
     INSTALL_BIN="$HOME/.local/bin"
-    INSTALL_ETC="$HOME/.config/hotplex"
+    INSTALL_ETC="$HOME/.hotplex"
     INSTALL_LOG="$HOME/.local/share/hotplex/logs"
 else
     # Linux: Use system paths (requires sudo)
     INSTALL_BIN="/usr/local/bin"
-    INSTALL_ETC="/etc/hotplex"
+    INSTALL_ETC="$HOME/.hotplex"
     INSTALL_LOG="/var/log/hotplex"
 fi
 
@@ -46,6 +46,7 @@ fi
 BINARY_PATH="$INSTALL_BIN/$BINARY_NAME"
 ENV_FILE="$INSTALL_ETC/.env"
 LOG_FILE="$INSTALL_LOG/daemon.log"
+ADMIN_CONFIGS="$INSTALL_ETC/configs"
 
 # Source paths (for installation)
 SOURCE_BINARY="$PROJECT_ROOT/dist/$BINARY_NAME"
@@ -115,21 +116,28 @@ install_files() {
         warn "Please edit $ENV_FILE with your settings"
     fi
 
-    # Install server.yaml if not exists
-    SERVER_YAML="$INSTALL_ETC/server.yaml"
-    SOURCE_SERVER_YAML="$PROJECT_ROOT/configs/server.yaml"
+    # Install server.yaml from base configs (SSOT)
+    SERVER_YAML="$ADMIN_CONFIGS/server.yaml"
+    SOURCE_SERVER_YAML="$PROJECT_ROOT/configs/base/server.yaml"
     if [[ ! -f "$SERVER_YAML" ]] && [[ -f "$SOURCE_SERVER_YAML" ]]; then
+        mkdir -p "$ADMIN_CONFIGS"
         info "Installing server config to $SERVER_YAML..."
         cp "$SOURCE_SERVER_YAML" "$SERVER_YAML"
     fi
 
-    # Install ChatApps configs
-    INSTALL_CONFIGS="$INSTALL_ETC/configs"
-    SOURCE_CONFIGS="$PROJECT_ROOT/configs/chatapps"
+    # Install ChatApps configs from base (unified config structure)
+    SOURCE_CONFIGS="$PROJECT_ROOT/configs/base"
     if [[ -d "$SOURCE_CONFIGS" ]]; then
-        info "Installing ChatApps configs to $INSTALL_CONFIGS..."
-        mkdir -p "$INSTALL_CONFIGS"
-        cp -r "$SOURCE_CONFIGS"/* "$INSTALL_CONFIGS/"
+        info "Installing base configs to $ADMIN_CONFIGS..."
+        mkdir -p "$ADMIN_CONFIGS"
+        cp -r "$SOURCE_CONFIGS"/* "$ADMIN_CONFIGS/"
+    fi
+
+    # Install admin-specific configs (overrides base)
+    SOURCE_ADMIN="$PROJECT_ROOT/configs/admin"
+    if [[ -d "$SOURCE_ADMIN" ]]; then
+        info "Installing admin configs to $ADMIN_CONFIGS..."
+        cp "$SOURCE_ADMIN"/*.yaml "$ADMIN_CONFIGS/" 2>/dev/null || true
     fi
 }
 
@@ -178,7 +186,7 @@ generate_plist() {
     <array>
         <string>${BINARY_PATH}</string>
         <string>--config</string>
-        <string>${INSTALL_ETC}/server.yaml</string>
+        <string>${INSTALL_ETC}/configs/server.yaml</string>
         <string>--env-file</string>
         <string>${ENV_FILE}</string>
         <string>--config-dir</string>
@@ -240,8 +248,8 @@ macos_install() {
         printf "      ${YELLOW}Status:${NC} Please create this file\n"
     fi
     printf "    ${CYAN}ChatApps configs:${NC}\n"
-    printf "      ${CYAN}Source:${NC} $PROJECT_ROOT/configs/chatapps/\n"
-    for f in "$PROJECT_ROOT"/configs/chatapps/*.yaml; do
+    printf "      ${CYAN}Source:${NC} $PROJECT_ROOT/configs/base/\n"
+    for f in "$PROJECT_ROOT"/configs/base/*.yaml; do
         if [[ -f "$f" ]]; then
             printf "      - $(basename "$f")\n"
         fi
@@ -283,8 +291,8 @@ macos_start() {
     printf "    ${CYAN}Main config:${NC}\n"
     printf "      ${CYAN}Path:${NC} $ENV_FILE\n"
     printf "    ${CYAN}ChatApps configs:${NC}\n"
-    printf "      ${CYAN}Source:${NC} $PROJECT_ROOT/configs/chatapps/\n"
-    for f in "$PROJECT_ROOT"/configs/chatapps/*.yaml; do
+    printf "      ${CYAN}Source:${NC} $PROJECT_ROOT/configs/base/\n"
+    for f in "$PROJECT_ROOT"/configs/base/*.yaml; do
         if [[ -f "$f" ]]; then
             printf "      - $(basename "$f")\n"
         fi
@@ -381,7 +389,7 @@ After=network.target
 Type=simple
 User=${USER}
 WorkingDirectory=${INSTALL_ETC}
-ExecStart=${BINARY_PATH} --config ${INSTALL_ETC}/server.yaml --env-file ${ENV_FILE} --config-dir ${INSTALL_ETC}/configs
+ExecStart=${BINARY_PATH} --config ${INSTALL_ETC}/configs/server.yaml --env-file ${ENV_FILE} --config-dir ${INSTALL_ETC}/configs
 Restart=on-failure
 RestartSec=5
 StandardOutput=append:${LOG_FILE}
@@ -450,8 +458,8 @@ linux_install() {
         printf "      ${YELLOW}Status:${NC} Please create this file\n"
     fi
     printf "    ${CYAN}ChatApps configs:${NC}\n"
-    printf "      ${CYAN}Source:${NC} $PROJECT_ROOT/configs/chatapps/\n"
-    for f in "$PROJECT_ROOT"/configs/chatapps/*.yaml; do
+    printf "      ${CYAN}Source:${NC} $PROJECT_ROOT/configs/base/\n"
+    for f in "$PROJECT_ROOT"/configs/base/*.yaml; do
         if [[ -f "$f" ]]; then
             printf "      - $(basename "$f")\n"
         fi
@@ -503,8 +511,8 @@ linux_start() {
     printf "    ${CYAN}Main config:${NC}\n"
     printf "      ${CYAN}Path:${NC} $ENV_FILE\n"
     printf "    ${CYAN}ChatApps configs:${NC}\n"
-    printf "      ${CYAN}Source:${NC} $PROJECT_ROOT/configs/chatapps/\n"
-    for f in "$PROJECT_ROOT"/configs/chatapps/*.yaml; do
+    printf "      ${CYAN}Source:${NC} $PROJECT_ROOT/configs/base/\n"
+    for f in "$PROJECT_ROOT"/configs/base/*.yaml; do
         if [[ -f "$f" ]]; then
             printf "      - $(basename "$f")\n"
         fi
@@ -534,8 +542,8 @@ linux_restart() {
     printf "    ${CYAN}Main config:${NC}\n"
     printf "      ${CYAN}Path:${NC} $ENV_FILE\n"
     printf "    ${CYAN}ChatApps configs:${NC}\n"
-    printf "      ${CYAN}Source:${NC} $PROJECT_ROOT/configs/chatapps/\n"
-    for f in "$PROJECT_ROOT"/configs/chatapps/*.yaml; do
+    printf "      ${CYAN}Source:${NC} $PROJECT_ROOT/configs/base/\n"
+    for f in "$PROJECT_ROOT"/configs/base/*.yaml; do
         if [[ -f "$f" ]]; then
             printf "      - $(basename "$f")\n"
         fi

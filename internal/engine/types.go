@@ -21,7 +21,7 @@ const (
 // Scanner buffer sizes for CLI output parsing.
 const (
 	ScannerInitialBufSize = 4 * 1024   // 4 KB - start small
-	ScannerMaxBufSize    = 512 * 1024 // 512 KB - sufficient for most CLI outputs
+	ScannerMaxBufSize     = 512 * 1024 // 512 KB - sufficient for most CLI outputs
 )
 
 // Session lifecycle constants.

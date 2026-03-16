@@ -219,8 +219,8 @@ func (l *ServerLoader) GetPort() string {
 // 1. Explicit path passed as argument
 // 2. HOTPLEX_SERVER_CONFIG environment variable
 // 3. XDG standard config directory (~/.config/hotplex/server.yaml)
-// 4. Current working directory (./configs/server.yaml)
-// 5. Project root fallback (../configs/server.yaml)
+// 4. Current working directory (./configs/admin/server.yaml)
+// 5. Project root fallback (../configs/admin/server.yaml)
 func ResolveConfigPath(explicitPath string) string {
 	// 1. Explicit path
 	if explicitPath != "" {
@@ -242,16 +242,16 @@ func ResolveConfigPath(explicitPath string) string {
 		return xdgPath
 	}
 
-	// 4. Current working directory default
+	// 4. Current working directory default (admin bot config)
 	cwd, _ := os.Getwd()
 	if cwd != "" {
-		cwdPath := filepath.Join(cwd, "configs", "server.yaml")
+		cwdPath := filepath.Join(cwd, "configs", "admin", "server.yaml")
 		if _, err := os.Stat(cwdPath); err == nil {
 			return cwdPath
 		}
 
 		// 5. Project root fallback
-		projectRoot := filepath.Join(cwd, "..", "configs", "server.yaml")
+		projectRoot := filepath.Join(cwd, "..", "configs", "admin", "server.yaml")
 		if _, err := os.Stat(projectRoot); err == nil {
 			return projectRoot
 		}

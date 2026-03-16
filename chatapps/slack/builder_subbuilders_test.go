@@ -103,9 +103,9 @@ func TestToolMessageBuilder_BuildToolResultMessage_LongRunning(t *testing.T) {
 		Type:    base.MessageTypeToolResult,
 		Content: "Large output content",
 		Metadata: map[string]any{
-			"tool_name":     "Bash",
-			"success":       true,
-			"duration_ms":   int64(1500),
+			"tool_name":      "Bash",
+			"success":        true,
+			"duration_ms":    int64(1500),
 			"content_length": int64(2048),
 		},
 	}

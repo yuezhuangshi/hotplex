@@ -149,3 +149,11 @@ release_notes_*.txt
 *.temp
 main
 !cmd/hotplexd/main.go
+
+
+# ------------------------------------------------------------------------------
+# 🤖 Docker Matrix Bot Configs (User-specific, don't sync to upstream)
+# ------------------------------------------------------------------------------
+
+# User bot configs - don't sync to upstream
+docker/matrix/configs/bot-*/

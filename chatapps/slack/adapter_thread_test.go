@@ -15,18 +15,18 @@ import (
 // TestConvertToThreadMessage tests the convertToThreadMessage function
 func TestConvertToThreadMessage(t *testing.T) {
 	storageMsg := &storage.ChatAppMessage{
-		ID:              "msg123",
-		ChatSessionID:   "session456",
-		ChatPlatform:    "slack",
-		ChatUserID:      "U123",
-		ChatBotUserID:   "UBOT",
-		ChatChannelID:   "C123",
-		ChatThreadID:    "T123",
-		MessageType:     types.MessageTypeUser,
-		Content:         "Hello world",
-		FromUserName:    "testuser",
-		ToUserID:        "U456",
-		CreatedAt:       time.Unix(1234567890, 0),
+		ID:            "msg123",
+		ChatSessionID: "session456",
+		ChatPlatform:  "slack",
+		ChatUserID:    "U123",
+		ChatBotUserID: "UBOT",
+		ChatChannelID: "C123",
+		ChatThreadID:  "T123",
+		MessageType:   types.MessageTypeUser,
+		Content:       "Hello world",
+		FromUserName:  "testuser",
+		ToUserID:      "U456",
+		CreatedAt:     time.Unix(1234567890, 0),
 	}
 
 	result := convertToThreadMessage(storageMsg)
@@ -188,21 +188,21 @@ func TestAdapter_ImplementsThreadHistoryProvider(t *testing.T) {
 // TestConvertToThreadMessage_Metadata tests that Metadata field is properly copied
 func TestConvertToThreadMessage_Metadata(t *testing.T) {
 	storageMsg := &storage.ChatAppMessage{
-		ID:              "msg123",
-		ChatSessionID:   "session456",
-		ChatPlatform:    "slack",
-		ChatUserID:      "U123",
-		ChatBotUserID:   "UBOT",
-		ChatChannelID:   "C123",
-		ChatThreadID:    "T123",
-		MessageType:     types.MessageTypeUser,
-		Content:         "Hello world",
-		FromUserName:    "testuser",
-		ToUserID:        "U456",
-		CreatedAt:       time.Now(),
+		ID:            "msg123",
+		ChatSessionID: "session456",
+		ChatPlatform:  "slack",
+		ChatUserID:    "U123",
+		ChatBotUserID: "UBOT",
+		ChatChannelID: "C123",
+		ChatThreadID:  "T123",
+		MessageType:   types.MessageTypeUser,
+		Content:       "Hello world",
+		FromUserName:  "testuser",
+		ToUserID:      "U456",
+		CreatedAt:     time.Now(),
 		Metadata: map[string]any{
-			"thread_ts":   "1234567890.123456",
-			"channel_id":  "C123",
+			"thread_ts":    "1234567890.123456",
+			"channel_id":   "C123",
 			"is_ephemeral": true,
 		},
 	}
@@ -223,13 +223,13 @@ func TestConvertToThreadMessage_Metadata(t *testing.T) {
 // TestConvertToThreadMessage_MetadataNil tests when source Metadata is nil
 func TestConvertToThreadMessage_MetadataNil(t *testing.T) {
 	storageMsg := &storage.ChatAppMessage{
-		ID:              "msg123",
-		ChatSessionID:   "session456",
-		ChatPlatform:    "slack",
-		MessageType:     types.MessageTypeUser,
-		Content:         "Hello world",
-		CreatedAt:       time.Now(),
-		Metadata:        nil,
+		ID:            "msg123",
+		ChatSessionID: "session456",
+		ChatPlatform:  "slack",
+		MessageType:   types.MessageTypeUser,
+		Content:       "Hello world",
+		CreatedAt:     time.Now(),
+		Metadata:      nil,
 	}
 
 	result := convertToThreadMessage(storageMsg)

@@ -32,19 +32,19 @@ security:
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer func() { _ = os.Remove(tmpFile.Name()) }()
-	
+
 	if _, err := tmpFile.WriteString(content); err != nil {
 		t.Fatalf("Failed to write temp file: %v", err)
 	}
 	if err := tmpFile.Close(); err != nil {
 		t.Fatalf("Failed to close temp file: %v", err)
 	}
-	
+
 	loader, err := NewServerLoader(tmpFile.Name(), nil)
 	if err != nil {
 		t.Fatalf("NewServerLoader failed: %v", err)
 	}
-	
+
 	if loader == nil {
 		t.Error("Loader should not be nil")
 	}
@@ -56,7 +56,7 @@ func TestNewServerLoader_FileNotFound(t *testing.T) {
 	if err != nil {
 		t.Errorf("NewServerLoader should not fail for missing file: %v", err)
 	}
-	
+
 	if loader == nil {
 		t.Error("Loader should be created with defaults")
 	}
@@ -68,14 +68,14 @@ func TestNewServerLoader_InvalidYAML(t *testing.T) {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer func() { _ = os.Remove(tmpFile.Name()) }()
-	
+
 	if _, err := tmpFile.WriteString("invalid: yaml: content:"); err != nil {
 		t.Fatalf("Failed to write temp file: %v", err)
 	}
 	if err := tmpFile.Close(); err != nil {
 		t.Fatalf("Failed to close temp file: %v", err)
 	}
-	
+
 	_, err = NewServerLoader(tmpFile.Name(), nil)
 	if err == nil {
 		t.Error("NewServerLoader should fail for invalid YAML")
@@ -88,25 +88,25 @@ func TestServerLoader_Get(t *testing.T) {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer func() { _ = os.Remove(tmpFile.Name()) }()
-	
+
 	if _, err := tmpFile.WriteString("server:\n  port: \"9090\"\n"); err != nil {
 		t.Fatalf("Failed to write temp file: %v", err)
 	}
 	if err := tmpFile.Close(); err != nil {
 		t.Fatalf("Failed to close temp file: %v", err)
 	}
-	
+
 	loader, err := NewServerLoader(tmpFile.Name(), nil)
 	if err != nil {
 		t.Fatalf("NewServerLoader failed: %v", err)
 	}
-	
+
 	cfg := loader.Get()
 	if cfg == nil {
 		t.Error("Get should not return nil")
 		return
 	}
-	
+
 	if cfg.Server.Port != "9090" {
 		t.Errorf("Port = %s, want 9090", cfg.Server.Port)
 	}
@@ -118,7 +118,7 @@ func TestServerLoader_GetSystemPrompt(t *testing.T) {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer func() { _ = os.Remove(tmpFile.Name()) }()
-	
+
 	content := `
 engine:
   system_prompt: "You are a helpful assistant"
@@ -129,12 +129,12 @@ engine:
 	if err := tmpFile.Close(); err != nil {
 		t.Fatalf("Failed to close temp file: %v", err)
 	}
-	
+
 	loader, err := NewServerLoader(tmpFile.Name(), nil)
 	if err != nil {
 		t.Fatalf("NewServerLoader failed: %v", err)
 	}
-	
+
 	prompt := loader.GetSystemPrompt()
 	if prompt != "You are a helpful assistant" {
 		t.Errorf("SystemPrompt = %s, want 'You are a helpful assistant'", prompt)
@@ -147,19 +147,19 @@ func TestServerLoader_GetTimeout_Default(t *testing.T) {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer func() { _ = os.Remove(tmpFile.Name()) }()
-	
+
 	if _, err := tmpFile.WriteString("server:\n  port: \"8080\"\n"); err != nil {
 		t.Fatalf("Failed to write temp file: %v", err)
 	}
 	if err := tmpFile.Close(); err != nil {
 		t.Fatalf("Failed to close temp file: %v", err)
 	}
-	
+
 	loader, err := NewServerLoader(tmpFile.Name(), nil)
 	if err != nil {
 		t.Fatalf("NewServerLoader failed: %v", err)
 	}
-	
+
 	// Should use default timeout
 	timeout := loader.GetTimeout()
 	if timeout != 30*time.Minute {
@@ -173,7 +173,7 @@ func TestServerLoader_GetTimeout_Custom(t *testing.T) {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer func() { _ = os.Remove(tmpFile.Name()) }()
-	
+
 	content := `
 engine:
   timeout: 45m
@@ -184,12 +184,12 @@ engine:
 	if err := tmpFile.Close(); err != nil {
 		t.Fatalf("Failed to close temp file: %v", err)
 	}
-	
+
 	loader, err := NewServerLoader(tmpFile.Name(), nil)
 	if err != nil {
 		t.Fatalf("NewServerLoader failed: %v", err)
 	}
-	
+
 	timeout := loader.GetTimeout()
 	if timeout != 45*time.Minute {
 		t.Errorf("Timeout = %v, want 45m", timeout)
@@ -202,19 +202,19 @@ func TestServerLoader_GetIdleTimeout_Default(t *testing.T) {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer func() { _ = os.Remove(tmpFile.Name()) }()
-	
+
 	if _, err := tmpFile.WriteString("server:\n  port: \"8080\"\n"); err != nil {
 		t.Fatalf("Failed to write temp file: %v", err)
 	}
 	if err := tmpFile.Close(); err != nil {
 		t.Fatalf("Failed to close temp file: %v", err)
 	}
-	
+
 	loader, err := NewServerLoader(tmpFile.Name(), nil)
 	if err != nil {
 		t.Fatalf("NewServerLoader failed: %v", err)
 	}
-	
+
 	// Should use default
 	idleTimeout := loader.GetIdleTimeout()
 	if idleTimeout != 1*time.Hour {
@@ -228,19 +228,19 @@ func TestServerLoader_GetWorkDir_Default(t *testing.T) {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer func() { _ = os.Remove(tmpFile.Name()) }()
-	
+
 	if _, err := tmpFile.WriteString("server:\n  port: \"8080\"\n"); err != nil {
 		t.Fatalf("Failed to write temp file: %v", err)
 	}
 	if err := tmpFile.Close(); err != nil {
 		t.Fatalf("Failed to close temp file: %v", err)
 	}
-	
+
 	loader, err := NewServerLoader(tmpFile.Name(), nil)
 	if err != nil {
 		t.Fatalf("NewServerLoader failed: %v", err)
 	}
-	
+
 	workDir := loader.GetWorkDir()
 	if workDir != "/tmp/hotplex_sandbox" {
 		t.Errorf("WorkDir = %s, want default '/tmp/hotplex_sandbox'", workDir)
@@ -253,19 +253,19 @@ func TestServerLoader_GetPort_Default(t *testing.T) {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer func() { _ = os.Remove(tmpFile.Name()) }()
-	
+
 	if _, err := tmpFile.WriteString("server:\n  port: \"\"\n"); err != nil {
 		t.Fatalf("Failed to write temp file: %v", err)
 	}
 	if err := tmpFile.Close(); err != nil {
 		t.Fatalf("Failed to close temp file: %v", err)
 	}
-	
+
 	loader, err := NewServerLoader(tmpFile.Name(), nil)
 	if err != nil {
 		t.Fatalf("NewServerLoader failed: %v", err)
 	}
-	
+
 	port := loader.GetPort()
 	if port != "8080" {
 		t.Errorf("Port = %s, want default '8080'", port)
@@ -288,14 +288,14 @@ security:
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer func() { _ = os.Remove(tmpFile.Name()) }()
-	
+
 	if _, err := tmpFile.WriteString(content); err != nil {
 		t.Fatalf("Failed to write temp file: %v", err)
 	}
 	if err := tmpFile.Close(); err != nil {
 		t.Fatalf("Failed to close temp file: %v", err)
 	}
-	
+
 	_, err = NewServerLoader(tmpFile.Name(), nil)
 	if err == nil {
 		t.Error("Should fail with invalid permission_mode")
@@ -312,14 +312,14 @@ server:
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer func() { _ = os.Remove(tmpFile.Name()) }()
-	
+
 	if _, err := tmpFile.WriteString(content); err != nil {
 		t.Fatalf("Failed to write temp file: %v", err)
 	}
 	if err := tmpFile.Close(); err != nil {
 		t.Fatalf("Failed to close temp file: %v", err)
 	}
-	
+
 	_, err = NewServerLoader(tmpFile.Name(), nil)
 	if err == nil {
 		t.Error("Should fail with invalid log_level")
@@ -336,14 +336,14 @@ engine:
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer func() { _ = os.Remove(tmpFile.Name()) }()
-	
+
 	if _, err := tmpFile.WriteString(content); err != nil {
 		t.Fatalf("Failed to write temp file: %v", err)
 	}
 	if err := tmpFile.Close(); err != nil {
 		t.Fatalf("Failed to close temp file: %v", err)
 	}
-	
+
 	_, err = NewServerLoader(tmpFile.Name(), nil)
 	if err == nil {
 		t.Error("Should fail with timeout > 24h")
@@ -360,14 +360,14 @@ engine:
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer func() { _ = os.Remove(tmpFile.Name()) }()
-	
+
 	if _, err := tmpFile.WriteString(content); err != nil {
 		t.Fatalf("Failed to write temp file: %v", err)
 	}
 	if err := tmpFile.Close(); err != nil {
 		t.Fatalf("Failed to close temp file: %v", err)
 	}
-	
+
 	_, err = NewServerLoader(tmpFile.Name(), nil)
 	if err == nil {
 		t.Error("Should fail with idle_timeout > 7 days")
@@ -380,7 +380,7 @@ engine:
 
 func TestPopulateFromEnv_APIKey(t *testing.T) {
 	t.Setenv("HOTPLEX_API_KEY", "env-api-key")
-	
+
 	content := `
 security:
   api_key: file-key
@@ -390,19 +390,19 @@ security:
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer func() { _ = os.Remove(tmpFile.Name()) }()
-	
+
 	if _, err := tmpFile.WriteString(content); err != nil {
 		t.Fatalf("Failed to write temp file: %v", err)
 	}
 	if err := tmpFile.Close(); err != nil {
 		t.Fatalf("Failed to close temp file: %v", err)
 	}
-	
+
 	loader, err := NewServerLoader(tmpFile.Name(), nil)
 	if err != nil {
 		t.Fatalf("NewServerLoader failed: %v", err)
 	}
-	
+
 	// Env should override file
 	cfg := loader.Get()
 	if cfg.Security.APIKey != "env-api-key" {
@@ -412,7 +412,7 @@ security:
 
 func TestPopulateFromEnv_Port(t *testing.T) {
 	t.Setenv("HOTPLEX_PORT", "9999")
-	
+
 	content := `
 server:
   port: "8080"
@@ -422,19 +422,19 @@ server:
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer func() { _ = os.Remove(tmpFile.Name()) }()
-	
+
 	if _, err := tmpFile.WriteString(content); err != nil {
 		t.Fatalf("Failed to write temp file: %v", err)
 	}
 	if err := tmpFile.Close(); err != nil {
 		t.Fatalf("Failed to close temp file: %v", err)
 	}
-	
+
 	loader, err := NewServerLoader(tmpFile.Name(), nil)
 	if err != nil {
 		t.Fatalf("NewServerLoader failed: %v", err)
 	}
-	
+
 	if loader.GetPort() != "9999" {
 		t.Errorf("Port = %s, want 9999", loader.GetPort())
 	}
@@ -442,7 +442,7 @@ server:
 
 func TestPopulateFromEnv_LogLevel(t *testing.T) {
 	t.Setenv("HOTPLEX_LOG_LEVEL", "debug")
-	
+
 	content := `
 server:
   log_level: info
@@ -452,19 +452,19 @@ server:
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer func() { _ = os.Remove(tmpFile.Name()) }()
-	
+
 	if _, err := tmpFile.WriteString(content); err != nil {
 		t.Fatalf("Failed to write temp file: %v", err)
 	}
 	if err := tmpFile.Close(); err != nil {
 		t.Fatalf("Failed to close temp file: %v", err)
 	}
-	
+
 	loader, err := NewServerLoader(tmpFile.Name(), nil)
 	if err != nil {
 		t.Fatalf("NewServerLoader failed: %v", err)
 	}
-	
+
 	cfg := loader.Get()
 	if cfg.Server.LogLevel != "debug" {
 		t.Errorf("LogLevel = %s, want debug", cfg.Server.LogLevel)
@@ -473,7 +473,7 @@ server:
 
 func TestPopulateFromEnv_Timeout(t *testing.T) {
 	t.Setenv("HOTPLEX_EXECUTION_TIMEOUT", "60m")
-	
+
 	content := `
 engine:
   timeout: 30m
@@ -483,19 +483,19 @@ engine:
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer func() { _ = os.Remove(tmpFile.Name()) }()
-	
+
 	if _, err := tmpFile.WriteString(content); err != nil {
 		t.Fatalf("Failed to write temp file: %v", err)
 	}
 	if err := tmpFile.Close(); err != nil {
 		t.Fatalf("Failed to close temp file: %v", err)
 	}
-	
+
 	loader, err := NewServerLoader(tmpFile.Name(), nil)
 	if err != nil {
 		t.Fatalf("NewServerLoader failed: %v", err)
 	}
-	
+
 	if loader.GetTimeout() != 60*time.Minute {
 		t.Errorf("Timeout = %v, want 60m", loader.GetTimeout())
 	}
@@ -508,9 +508,9 @@ engine:
 func TestServerConfig_Fields(t *testing.T) {
 	cfg := &ServerConfig{
 		Engine: EngineConfig{
-			Timeout:     30 * time.Minute,
-			IdleTimeout: 1 * time.Hour,
-			WorkDir:    "/tmp/work",
+			Timeout:      30 * time.Minute,
+			IdleTimeout:  1 * time.Hour,
+			WorkDir:      "/tmp/work",
 			SystemPrompt: "You are helpful",
 			AllowedTools: []string{"bash", "edit"},
 		},
@@ -523,7 +523,7 @@ func TestServerConfig_Fields(t *testing.T) {
 			PermissionMode: "strict",
 		},
 	}
-	
+
 	if cfg.Engine.Timeout != 30*time.Minute {
 		t.Errorf("Engine.Timeout = %v", cfg.Engine.Timeout)
 	}

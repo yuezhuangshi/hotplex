@@ -345,12 +345,12 @@ func TestParsePostgresDSN(t *testing.T) {
 // TestGetPostgreConfigWithURL tests that URL takes precedence over individual fields
 func TestGetPostgreConfigWithURL(t *testing.T) {
 	pluginConfig := PluginConfig{
-		"url":       "postgres://urluser:urlpass@urlhost:5433/urldb?sslmode=require",
-		"host":      "fieldhost",
-		"user":      "fielduser",
-		"password":  "fieldpass",
-		"database":  "fielddb",
-		"ssl_mode":  "disable",
+		"url":      "postgres://urluser:urlpass@urlhost:5433/urldb?sslmode=require",
+		"host":     "fieldhost",
+		"user":     "fielduser",
+		"password": "fieldpass",
+		"database": "fielddb",
+		"ssl_mode": "disable",
 	}
 
 	pgConfig, err := getPostgreConfig(pluginConfig)

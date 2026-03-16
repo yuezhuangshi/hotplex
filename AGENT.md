@@ -118,8 +118,28 @@ The edit tool tracks file state. Sequential edits without re-reading cause dupli
   - ✅ `${HOTPLEX_SLACK_BOT_USER_ID}` → Works correctly
 
 ### Configuration Layering
-- **Priority**: `.env` (host process) → `docker/matrix/.env-01` (Bot1 Docker) → `docker/matrix/.env-02` (Bot2 Docker) → `chatapps/configs/*.yaml` (behavior) → `docker/matrix/docker-compose.yml`
+- **Priority**: `.env` (凭证/敏感值) → YAML 配置 → `inherits` 父配置 → 默认值
 - **bot_user_id**: Each bot MUST have unique `bot_user_id` in .env, otherwise session IDs collide
+- **message_store**: 结构定义在 YAML，敏感路径使用 `${VAR}` 环境变量
+  ```yaml
+  message_store:
+    enabled: true
+    backend: sqlite
+    path: ${HOTPLEX_MESSAGE_STORE_PATH}  # 从 .env 读取
+  ```
+
+### Configuration Inheritance (inherits)
+- Use `inherits: ./path/to/parent.yaml` to inherit parent configuration
+- Child config overrides parent's fields with the same name
+- Supports relative paths
+- Circular inheritance will cause an error
+- Example:
+  ```yaml
+  # configs/chatapps/slack-prod.yaml
+  inherits: ./slack-base.yaml
+  ai:
+    system_prompt: "Production prompt"  # Override parent
+  ```
 
 ---
 

@@ -19,17 +19,17 @@ func TestMemoryRuleSource(t *testing.T) {
 		&security.SafePatternRule{
 			Pattern:     regexp.MustCompile(`^ls`),
 			Description: "List files",
-			Category:   "utilities",
+			Category:    "utilities",
 		},
 	}
-	
+
 	mrs := NewMemoryRuleSource("test-memory", rules)
-	
+
 	// Test Name
 	if mrs.Name() != "test-memory" {
 		t.Errorf("Expected name 'test-memory', got '%s'", mrs.Name())
 	}
-	
+
 	// Test LoadRules
 	loaded, err := mrs.LoadRules(context.Background())
 	if err != nil {
@@ -38,14 +38,14 @@ func TestMemoryRuleSource(t *testing.T) {
 	if len(loaded) != 1 {
 		t.Errorf("Expected 1 rule, got %d", len(loaded))
 	}
-	
+
 	// Test AddRule
 	mrs.AddRule(&security.SafePatternRule{
 		Pattern:     regexp.MustCompile(`^cd`),
 		Description: "Change directory",
-		Category:   "utilities",
+		Category:    "utilities",
 	})
-	
+
 	loaded, _ = mrs.LoadRules(context.Background())
 	if len(loaded) != 2 {
 		t.Errorf("Expected 2 rules after AddRule, got %d", len(loaded))
@@ -57,12 +57,12 @@ func TestMemoryRuleSource_ConcurrentAccess(t *testing.T) {
 		&security.SafePatternRule{
 			Pattern:     regexp.MustCompile(`^ls`),
 			Description: "List files",
-			Category:   "utilities",
+			Category:    "utilities",
 		},
 	}
-	
+
 	mrs := NewMemoryRuleSource("concurrent-test", rules)
-	
+
 	// Concurrent read
 	done := make(chan bool, 10)
 	for i := 0; i < 10; i++ {
@@ -74,30 +74,30 @@ func TestMemoryRuleSource_ConcurrentAccess(t *testing.T) {
 			done <- true
 		}()
 	}
-	
+
 	// Concurrent write
 	go func() {
 		for j := 0; j < 100; j++ {
 			mrs.AddRule(&security.SafePatternRule{
 				Pattern:     regexp.MustCompile(`^test`),
 				Description: "test",
-				Category:   "test",
+				Category:    "test",
 			})
 		}
 		done <- true
 	}()
-	
+
 	<-done
 	<-done
 }
 
 func TestDefaultDevelopToolsRules(t *testing.T) {
 	rules := DefaultDevelopToolsRules()
-	
+
 	if len(rules) == 0 {
 		t.Error("DefaultDevelopToolsRules should return at least one rule")
 	}
-	
+
 	// Test some known patterns (note: regex requires specific spacing)
 	testCases := []struct {
 		input    string
@@ -106,11 +106,11 @@ func TestDefaultDevelopToolsRules(t *testing.T) {
 		{"go build ./...", true},
 		{"npm install", true},
 		{"git status", true},
-		{"docker ps ", true},  // docker ps requires trailing space to match
+		{"docker ps ", true}, // docker ps requires trailing space to match
 		{"ls -la", true},
 		{"rm -rf /", false}, // Not in safe patterns
 	}
-	
+
 	for _, tc := range testCases {
 		found := false
 		for _, rule := range rules {
@@ -142,7 +142,7 @@ func TestFileRuleSource_LoadRules_JSON(t *testing.T) {
 		{"pattern": "^ls", "description": "List files", "level": "safe", "category": "utilities"},
 		{"pattern": "rm\\s+-rf\\s+/", "description": "Recursive delete", "level": "critical", "category": "destructive"}
 	]`
-	
+
 	tmpFile, err := os.CreateTemp("", "rules-*.json")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -153,18 +153,18 @@ func TestFileRuleSource_LoadRules_JSON(t *testing.T) {
 		t.Fatalf("Failed to write temp file: %v", err)
 	}
 	_ = tmpFile.Close()
-	
+
 	f := NewFileRuleSource(tmpFile.Name())
 	rules, err := f.LoadRules(context.Background())
 	if err != nil {
 		t.Errorf("LoadRules failed: %v", err)
 	}
-	
+
 	// Should load 2 rules (both valid patterns)
 	if len(rules) != 2 {
 		t.Errorf("Expected 2 rules, got %d", len(rules))
 	}
-	
+
 	// Test rule evaluation
 	if rules[0].Evaluate("ls -la") == nil {
 		t.Error("Safe pattern should match 'ls -la'")
@@ -178,7 +178,7 @@ func TestFileRuleSource_LoadRules_LineBased(t *testing.T) {
 ^cd|Change directory|safe|utilities
 rm\\s+-rf\\s+/|Recursive delete|critical|destructive
 `
-	
+
 	tmpFile, err := os.CreateTemp("", "rules-*.txt")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -189,13 +189,13 @@ rm\\s+-rf\\s+/|Recursive delete|critical|destructive
 		t.Fatalf("Failed to write temp file: %v", err)
 	}
 	_ = tmpFile.Close()
-	
+
 	f := NewFileRuleSource(tmpFile.Name())
 	rules, err := f.LoadRules(context.Background())
 	if err != nil {
 		t.Errorf("LoadRules failed: %v", err)
 	}
-	
+
 	// Should load 3 rules (skipping comment and empty lines)
 	if len(rules) != 3 {
 		t.Errorf("Expected 3 rules, got %d", len(rules))
@@ -224,13 +224,13 @@ func TestFileRuleSource_InvalidJSON(t *testing.T) {
 		t.Fatalf("Failed to write temp file: %v", err)
 	}
 	_ = tmpFile.Close()
-	
+
 	f := NewFileRuleSource(tmpFile.Name())
 	rules, err := f.LoadRules(context.Background())
 	if err != nil {
 		t.Errorf("LoadRules should not fail for invalid content: %v", err)
 	}
-	
+
 	// Should return empty rules (line-based parsing finds nothing valid)
 	if len(rules) != 0 {
 		t.Errorf("Expected 0 rules for invalid content, got %d", len(rules))
@@ -251,7 +251,7 @@ func TestSplitLineRule(t *testing.T) {
 		{"a|b|c", 3},
 		{"", 0},
 	}
-	
+
 	for _, tt := range tests {
 		result := splitLineRule(tt.line)
 		if len(result) != tt.expected {
@@ -279,7 +279,7 @@ func TestRemoveComment(t *testing.T) {
 		{"", ""},
 		{"   # leading spaces then comment", "   "},
 	}
-	
+
 	for _, tt := range tests {
 		result := removeComment(tt.input)
 		if result != tt.expected {
@@ -290,18 +290,18 @@ func TestRemoveComment(t *testing.T) {
 
 func TestParseLineRule(t *testing.T) {
 	tests := []struct {
-		line       string
-		wantErr    bool
+		line        string
+		wantErr     bool
 		wantPattern string
 	}{
 		{"pattern|description|level|category", false, "pattern"},
 		{"pattern|description|level|category|type", false, "pattern"},
 		{"a|b|c|d", false, "a"},
 		{"a|b|c", true, ""}, // Less than 4 parts should error
-		{"a|b", true, ""}, // Less than 4 parts should error
+		{"a|b", true, ""},   // Less than 4 parts should error
 		{"", true, ""},
 	}
-	
+
 	for _, tt := range tests {
 		result, err := parseLineRule(tt.line)
 		if (err != nil) != tt.wantErr {
@@ -324,7 +324,7 @@ func TestFileRuleSource_AbsolutePath(t *testing.T) {
 	if err != nil {
 		t.Skip("Cannot resolve absolute path")
 	}
-	
+
 	f := NewFileRuleSource(absPath)
 	if f.Name() != "file:"+absPath {
 		t.Errorf("Name should include absolute path")

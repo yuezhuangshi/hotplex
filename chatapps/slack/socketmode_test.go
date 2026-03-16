@@ -9,7 +9,7 @@ import (
 
 func TestHandleAppHomeOpenedEvent(t *testing.T) {
 	adapter := newTestAdapter()
-	
+
 	// Test without appHomeHandler (should not panic)
 	event := &slackevents.AppHomeOpenedEvent{
 		User:    "U123",
@@ -21,7 +21,7 @@ func TestHandleAppHomeOpenedEvent(t *testing.T) {
 
 func TestHandleSocketModeMessageEvent(t *testing.T) {
 	adapter := newTestAdapter()
-	
+
 	// Test with bot message (should return early)
 	event := &slackevents.MessageEvent{
 		BotID:   "B123",
@@ -34,19 +34,19 @@ func TestHandleSocketModeMessageEvent(t *testing.T) {
 
 func TestHandleSocketModeMessageEvent_EmptyText(t *testing.T) {
 	adapter := newTestAdapter()
-	
+
 	// Test with empty text (should return early)
 	event := &slackevents.MessageEvent{
 		User:    "U123",
 		Channel: "C123",
-		Text:   "",
+		Text:    "",
 	}
 	adapter.handleSocketModeMessageEvent("T123", event)
 }
 
 func TestHandleSocketModeMessageEvent_MessageChanged(t *testing.T) {
 	adapter := newTestAdapter()
-	
+
 	// Test with message_changed subtype (should return early)
 	event := &slackevents.MessageEvent{
 		User:    "U123",
@@ -59,7 +59,7 @@ func TestHandleSocketModeMessageEvent_MessageChanged(t *testing.T) {
 
 func TestHandleSocketModeSlashCommand(t *testing.T) {
 	adapter := newTestAdapter()
-	
+
 	// Test slash command handling - create a minimal socketmode.Event
 	evt := socketmode.Event{
 		Type: socketmode.EventTypeSlashCommand,
@@ -69,7 +69,7 @@ func TestHandleSocketModeSlashCommand(t *testing.T) {
 
 func TestHandleSocketModeInteractive(t *testing.T) {
 	adapter := newTestAdapter()
-	
+
 	// Test interactive callback handling - create a minimal socketmode.Event
 	evt := socketmode.Event{
 		Type: socketmode.EventTypeInteractive,
@@ -79,7 +79,7 @@ func TestHandleSocketModeInteractive(t *testing.T) {
 
 func TestHandleSocketModeEventsAPI(t *testing.T) {
 	adapter := newTestAdapter()
-	
+
 	// Test EventsAPI callback handling - create a minimal socketmode.Event
 	evt := socketmode.Event{
 		Type: socketmode.EventTypeEventsAPI,
@@ -89,7 +89,7 @@ func TestHandleSocketModeEventsAPI(t *testing.T) {
 
 func TestHandleSocketModeEvent(t *testing.T) {
 	adapter := newTestAdapter()
-	
+
 	// Test with nil event (should handle gracefully)
 	evt := socketmode.Event{}
 	adapter.handleSocketModeEvent(evt)

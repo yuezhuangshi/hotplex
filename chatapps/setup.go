@@ -45,7 +45,7 @@ func Setup(ctx context.Context, logger *slog.Logger, configDir ...string) (http.
 	// 1. configDir parameter (--config flag, highest)
 	// 2. HOTPLEX_CHATAPPS_CONFIG_DIR environment variable
 	// 3. ~/.hotplex/configs (user config)
-	// 4. ./configs/chatapps (default)
+	// 4. ./configs/admin (default, for admin bot)
 	dir := ""
 
 	// 1. configDir parameter (highest priority)
@@ -74,9 +74,9 @@ func Setup(ctx context.Context, logger *slog.Logger, configDir ...string) (http.
 		}
 	}
 
-	// 4. Default config directory
+	// 4. Default config directory (admin bot)
 	if dir == "" {
-		dir = "configs/chatapps"
+		dir = "configs/admin"
 		// Check if default config directory exists
 		if _, err := os.Stat(dir); os.IsNotExist(err) {
 			logger.Info("Default config directory not found, skipping config loading", "path", dir)
@@ -346,8 +346,8 @@ func setupPlatform(
 				client := slackAdapter.GetSlackClient()
 				if client != nil {
 					appHomeConfig := apphome.Config{
-						Enabled:           true,
-						CapabilitiesPath:  os.Getenv("HOTPLEX_SLACK_CAPABILITIES_PATH"),
+						Enabled:          true,
+						CapabilitiesPath: os.Getenv("HOTPLEX_SLACK_CAPABILITIES_PATH"),
 					}
 					// Pass nil for brain - can be set later if needed
 					handler, _, _ := apphome.Setup(client, nil, appHomeConfig, logger)

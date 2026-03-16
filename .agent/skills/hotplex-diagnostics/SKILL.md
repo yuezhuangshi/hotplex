@@ -1,182 +1,173 @@
 ---
 name: HotPlex Diagnostics
-description: This skill should be used when the user asks to "diagnose hotplex", "check health", "view logs", "debug session", "check status", "get stats". Provides monitoring and diagnostic capabilities for hotplex services.
-version: 0.1.0
+description: Use this skill when the user asks to "diagnose hotplex", "check health", "view logs", "debug session", "check status", "get stats", "container logs", "check error". Provides monitoring and diagnostic capabilities for hotplex services.
+version: 0.2.0
 ---
 
 # HotPlex Diagnostics
 
 Monitor and diagnose hotplex service health, logs, and session statistics.
 
-## Overview
+## Critical: Working Directory
 
-This skill provides diagnostic capabilities for running hotplex containers. It includes log analysis, health checks, API status queries, and session debugging.
+**All docker compose commands MUST be executed from the compose directory.**
 
-## Prerequisites
+```bash
+COMPOSE_DIR="~/hotplex/docker/matrix"
+```
 
-- HotPlex containers running via docker-compose
-- Access to container ports (18080, 18081 by default)
-- curl or wget for HTTP API calls
+**Pattern**: Always prefix docker compose commands with `cd $COMPOSE_DIR &&`:
+```bash
+cd ~/hotplex/docker/matrix && docker compose ps
+```
+
+## Container Reference
+
+| Container | Port | Bot ID | Role |
+|:----------|:-----|:-------|:-----|
+| hotplex-01 | 18080 | U0AHRCL1KCM | Primary |
+| hotplex-02 | 18081 | U0AJVRH4YF6 | Secondary |
+| hotplex-03 | 18082 | U0AL7H8UU75 | Secondary |
+
+## Quick Diagnostics
+
+### Full System Health Check
+
+```bash
+cd ~/hotplex/docker/matrix && \
+for bot in hotplex-01 hotplex-02 hotplex-03; do
+  echo "=== $bot ==="
+  docker compose ps $bot 2>/dev/null | tail -1
+done
+```
+
+### View All Errors (All Containers)
+
+```bash
+cd ~/hotplex/docker/matrix && \
+docker compose logs --tail=100 2>&1 | grep -i "error\|fatal\|panic"
+```
+
+### Check Socket Mode Status
+
+```bash
+cd ~/hotplex/docker/matrix && \
+docker compose logs --tail=50 2>&1 | grep -E "Socket Mode|invalid_auth|Connected"
+```
 
 ## Health Checks
 
 ### HTTP Health Endpoint
 
-Check if a hotplex service is responding:
-
 ```bash
 curl -s http://localhost:18080/health
 curl -s http://localhost:18081/health
+curl -s http://localhost:18082/health
 ```
 
 ### Container Health Status
 
-Check Docker container health:
-
 ```bash
-docker inspect hotplex --format='{{.State.Health.Status}}'
+docker inspect hotplex-01 --format='{{.State.Health.Status}}'
+docker inspect hotplex-02 --format='{{.State.Health.Status}}'
+docker inspect hotplex-03 --format='{{.State.Health.Status}}'
 ```
 
 ## Log Analysis
 
 ### View Recent Logs
 
-Get recent log entries:
-
 ```bash
-docker compose logs --tail=200 hotplex
+# Single container
+cd ~/hotplex/docker/matrix && \
+docker compose logs --tail=200 hotplex-01
+
+# All containers
+cd ~/hotplex/docker/matrix && \
+docker compose logs --tail=100
 ```
 
-### Filter Logs by Level
-
-Filter for specific log levels (requires JSON logging):
+### Search Logs for Errors
 
 ```bash
-docker compose logs --filter "level=error" hotplex
+# Single container errors
+docker logs hotplex-01 --since "1h" 2>&1 | grep -i error
+
+# All containers errors
+cd ~/hotplex/docker/matrix && \
+for bot in hotplex-01 hotplex-02 hotplex-03; do
+  echo "=== $bot ==="
+  docker logs $bot --since "1h" 2>&1 | grep -i error | head -10
+done
+```
+
+### Session Tracing
+
+```bash
+# Replace SESSION_ID with actual session ID
+docker logs hotplex-01 2>&1 | grep "SESSION_ID"
 ```
 
 ### Follow Logs in Real-time
 
-Stream logs continuously:
-
 ```bash
-docker compose logs -f hotplex
-```
-
-## Session Statistics
-
-### Get Session Stats via WebSocket
-
-Query session statistics using the stats API:
-
-```bash
-# Via docker exec
-docker exec hotplex sh -c 'echo {"type":"stats","session_id":"test"}' | wscat -c ws://localhost:8080/ws
-```
-
-### List Active Sessions
-
-List running CLI processes inside container:
-
-```bash
-docker exec hotplex ps aux | grep -E "(claude|opencode)"
-```
-
-## API Diagnostics
-
-### Check WebSocket Endpoint
-
-Verify WebSocket connectivity:
-
-```bash
-curl -i -N \
-  -H "Connection: Upgrade" \
-  -H "Upgrade: websocket" \
-  http://localhost:18080/ws
-```
-
-### Test Execute Endpoint
-
-Test basic execution capability:
-
-```bash
-curl -X POST http://localhost:18080/api/execute \
-  -H "Content-Type: application/json" \
-  -d '{"prompt":"hello","session_id":"test"}'
+cd ~/hotplex/docker/matrix && \
+docker compose logs -f hotplex-01
 ```
 
 ## Performance Monitoring
 
 ### Container Resources
 
-Monitor resource usage:
-
 ```bash
-docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}" hotplex hotplex-secondary
+docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}" \
+  hotplex-01 hotplex-02 hotplex-03
 ```
 
 ### Disk Usage
 
-Check container disk usage:
-
 ```bash
-docker exec hotplex du -sh /home/hotplex/.hotplex
-docker exec hotplex du -sh /home/hotplex/.claude
+docker exec hotplex-01 du -sh /home/hotplex/.hotplex
+docker exec hotplex-01 du -sh /home/hotplex/.claude
 ```
 
 ## Debugging Sessions
 
 ### Enter Container Shell
 
-Interactive debugging:
-
 ```bash
-docker exec -it hotplex /bin/sh
+docker exec -it hotplex-01 /bin/sh
 ```
 
 ### Check Running Processes
 
-View all processes inside container:
-
 ```bash
-docker exec hotplex ps aux
+docker exec hotplex-01 ps aux | grep -E "(claude|opencode)"
 ```
 
 ### Network Diagnostics
 
-Check network connectivity:
-
 ```bash
-docker exec hotplex wget -qO- http://localhost:8080/health
-docker exec hotplex nslookup host.docker.internal
+docker exec hotplex-01 wget -qO- http://localhost:8080/health
 ```
 
-## Configuration
+## Container Discovery
 
-### Dynamic Container Names
-When user mentions a specific bot, use the corresponding container name:
-- Ask user which bot they want to diagnose if not specified
-- Use `docker compose ps` to list available containers
-- Replace `<BOT>` in commands below with actual container name (e.g., hotplex-01, hotplex-02)
+If user doesn't specify which bot:
 
-### Default Ports (Examples)
-Port numbers are configured in docker-compose.yml. Examples:
-- hotplex-01: 18080 (example)
-- hotplex-02: 18081 (example)
+```bash
+cd ~/hotplex/docker/matrix && docker compose ps
+```
 
-> **Important**: Each bot runs as a single instance. Do NOT run multiple instances of the same bot.
-
-Health endpoint: `/health`
-WebSocket endpoint: `/ws`
+Then use the container name (hotplex-01, hotplex-02, or hotplex-03) in subsequent commands.
 
 ## Additional Resources
 
 ### Reference Files
 
-- **`internal/server/hotplex_ws.go`** - WebSocket API implementation
-- **`references/api-endpoints.md`** - Complete API documentation
+- `internal/server/hotplex_ws.go` - WebSocket API implementation
 
 ### Related Skills
 
-- **`docker-container-ops`** - For container lifecycle management
-- **`hotplex-data-mgmt`** - For data and session management
+- `docker-container-ops` - For container lifecycle management
+- `hotplex-data-mgmt` - For data and session management

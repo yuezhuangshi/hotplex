@@ -61,6 +61,11 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 RUN npm install -g pnpm@latest bun@latest && \
     npm cache clean --force
 
+# Pre-install notebooklm-py CLI (for NotebookLM skill)
+# Browser support requires local GUI - container uses CLI mode only
+RUN pip3 install --break-system-packages "notebooklm-py" && \
+    rm -rf /root/.cache/pip /root/.cache/uv
+
 # 2. HotPlex User & Workspace Setup
 RUN useradd -m -u ${HOST_UID} -s /bin/bash hotplex && \
     mkdir -p /app /home/hotplex/.cache && \

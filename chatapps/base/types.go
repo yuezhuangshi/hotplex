@@ -267,17 +267,17 @@ type ThreadHistoryProvider interface {
 //   - For cross-platform compatibility, prefer simple types (string, int, bool)
 //   - Complex types may require custom marshaling in adapters
 type ThreadMessage struct {
-	ID         string
-	SessionID  string
-	Platform   string
-	UserID     string
-	BotUserID  string
-	ChannelID  string
-	ThreadID   string
-	Type       string    // "user_input", "final_response", etc.
-	Content    string
-	FromUser   string
-	ToUser     string
-	CreatedAt  time.Time
-	Metadata   map[string]any // Platform-specific metadata; use JSON-serializable values
+	ID        string
+	SessionID string
+	Platform  string
+	UserID    string
+	BotUserID string
+	ChannelID string
+	ThreadID  string
+	Type      string // "user_input", "final_response", etc.
+	Content   string
+	FromUser  string
+	ToUser    string
+	CreatedAt time.Time
+	Metadata  map[string]any // Platform-specific metadata; use JSON-serializable values
 }

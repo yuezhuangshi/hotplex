@@ -148,50 +148,50 @@ type ProviderSessionOptions struct {
 // This is used in the layered configuration system.
 type ProviderConfig struct {
 	// Type identifies the provider (required)
-	Type ProviderType `json:"type" koanf:"type"`
+	Type ProviderType `json:"type" yaml:"type" koanf:"type"`
 
 	// Enabled controls whether this provider is available
-	Enabled *bool `json:"enabled" koanf:"enabled"`
+	Enabled *bool `json:"enabled" yaml:"enabled" koanf:"enabled"`
 
 	// ExplicitDisable explicitly disables the provider, overriding base config's Enabled=true.
 	// This is needed because bool zero value (false) cannot be distinguished from "not set"
 	// in config merging. Use this when you want to disable a provider in overlay config.
-	ExplicitDisable bool `json:"explicit_disable,omitempty" koanf:"explicit_disable"`
+	ExplicitDisable bool `json:"explicit_disable,omitempty" yaml:"explicit_disable,omitempty" koanf:"explicit_disable"`
 
 	// BinaryPath overrides the default binary lookup path
-	BinaryPath string `json:"binary_path,omitempty" koanf:"binary_path"`
+	BinaryPath string `json:"binary_path,omitempty" yaml:"binary_path,omitempty" koanf:"binary_path"`
 
 	// DefaultModel is the default model to use
-	DefaultModel string `json:"default_model,omitempty" koanf:"default_model"`
+	DefaultModel string `json:"default_model,omitempty" yaml:"default_model,omitempty" koanf:"default_model"`
 
 	// DefaultPermissionMode is the default permission mode
-	DefaultPermissionMode string `json:"default_permission_mode,omitempty" koanf:"default_permission_mode"`
+	DefaultPermissionMode string `json:"default_permission_mode,omitempty" yaml:"default_permission_mode,omitempty" koanf:"default_permission_mode"`
 
 	// DangerouslySkipPermissions bypasses all permission checks.
 	// Equivalent to --permission-mode bypassPermissions but skips permission prompts entirely.
 	// Recommended only for sandboxes with no internet access.
-	DangerouslySkipPermissions *bool `json:"dangerously_skip_permissions,omitempty" koanf:"dangerously_skip_permissions"`
+	DangerouslySkipPermissions *bool `json:"dangerously_skip_permissions,omitempty" yaml:"dangerously_skip_permissions,omitempty" koanf:"dangerously_skip_permissions"`
 
 	// AllowedTools restricts available tools (provider-level override)
-	AllowedTools []string `json:"allowed_tools,omitempty" koanf:"allowed_tools"`
+	AllowedTools []string `json:"allowed_tools,omitempty" yaml:"allowed_tools,omitempty" koanf:"allowed_tools"`
 
 	// DisallowedTools blocks specific tools (provider-level override)
-	DisallowedTools []string `json:"disallowed_tools,omitempty" koanf:"disallowed_tools"`
+	DisallowedTools []string `json:"disallowed_tools,omitempty" yaml:"disallowed_tools,omitempty" koanf:"disallowed_tools"`
 
 	// ExtraArgs are additional CLI arguments
-	ExtraArgs []string `json:"extra_args,omitempty" koanf:"extra_args"`
+	ExtraArgs []string `json:"extra_args,omitempty" yaml:"extra_args,omitempty" koanf:"extra_args"`
 
 	// ExtraEnv are additional environment variables
-	ExtraEnv map[string]string `json:"extra_env,omitempty" koanf:"extra_env"`
+	ExtraEnv map[string]string `json:"extra_env,omitempty" yaml:"extra_env,omitempty" koanf:"extra_env"`
 
 	// Timeout overrides the default execution timeout
-	Timeout time.Duration `json:"timeout,omitempty" koanf:"timeout"`
+	Timeout time.Duration `json:"timeout,omitempty" yaml:"timeout,omitempty" koanf:"timeout"`
 
 	// OpenCode-specific options
-	OpenCode *OpenCodeConfig `json:"opencode,omitempty" koanf:"opencode"`
+	OpenCode *OpenCodeConfig `json:"opencode,omitempty" yaml:"opencode,omitempty" koanf:"opencode"`
 
 	// Pi-specific options
-	Pi *PiConfig `json:"pi,omitempty" koanf:"pi"`
+	Pi *PiConfig `json:"pi,omitempty" yaml:"pi,omitempty" koanf:"pi"`
 }
 
 // OpenCodeConfig contains OpenCode-specific configuration.

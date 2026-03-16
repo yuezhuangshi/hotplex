@@ -28,11 +28,11 @@ x-hotplex-common: &hotplex-common
     GIT_USER_EMAIL: ${GIT_USER_EMAIL:-noreply@hotplex.dev}
     # ─────────────────────────────────────────────────────────────────
     # ChatApp Core Paths (Container Paths - DO NOT CHANGE)
-    # ─────────────────────────────────────────────────────────────────
-    HOTPLEX_DATA_ROOT: /home/hotplex/.hotplex
+    # HOTPLEX_DATA_ROOT was removed per unified config design spec
+    # HOTPLEX_PROJECTS_DIR and HOTPLEX_MESSAGE_STORE_SQLITE_PATH are kept as they are used by code
     HOTPLEX_PROJECTS_DIR: /home/hotplex/projects
     HOTPLEX_MESSAGE_STORE_SQLITE_PATH: /home/hotplex/.hotplex/chatapp_messages.db
-    HOTPLEX_CHATAPPS_CONFIG_DIR: /home/hotplex/configs/chatapps
+    HOTPLEX_CHATAPPS_CONFIG_DIR: /home/hotplex/.hotplex/configs
     # ─────────────────────────────────────────────────────────────────
     # Engine Timeouts (Convention: sensible defaults)
     # ─────────────────────────────────────────────────────────────────
@@ -84,7 +84,7 @@ services:
     <<: *hotplex-common
     volumes:
       # Shared Resources (Common to all instances)
-      - ${HOTPLEX_HOST_CONFIGS_DIR:-~/.hotplex/configs}:/home/hotplex/configs:rw
+      - ${HOTPLEX_HOST_CONFIGS_DIR:-~/.hotplex/configs}:/home/hotplex/.hotplex/configs:rw
       - ~/.claude:/home/hotplex/.claude_seed:ro
       - matrix-go-mod:/home/hotplex/go/pkg/mod:rw
       - matrix-go-build:/home/hotplex/.cache/go-build:rw

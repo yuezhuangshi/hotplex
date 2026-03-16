@@ -263,7 +263,7 @@ install-hooks: ## @dev Install Git hooks
 # =============================================================================
 # 🚀 RUNTIME
 # =============================================================================
-run: build config-info ## @runtime Build and start daemon in foreground
+run: sync build config-info ## @runtime Build and start daemon in foreground
 	@printf "${PURPLE}🔥 Starting HotPlex Daemon...${NC}\n"
 	@./$(DIST_DIR)/$(BINARY_NAME)
 
@@ -285,7 +285,7 @@ stop: ## @runtime Stop the running daemon and all its child processes
 		printf "${YELLOW}⚠️  No running daemon found${NC}\n"; \
 	fi
 
-restart: build config-info ## @runtime Restart daemon with latest source code
+restart: sync build config-info ## @runtime Restart daemon with latest source code
 	@mkdir -p $(LOG_DIR)
 	@./scripts/restart_helper.sh "$$(pwd)/$(DIST_DIR)/$(BINARY_NAME)" "$(LOG_FILE)"
 
@@ -302,7 +302,7 @@ service-uninstall: ## @service Remove the system service
 	@chmod +x $(SERVICE_SCRIPT)
 	@$(SERVICE_SCRIPT) uninstall
 
-service-start: ## @service Start the system service
+service-start: sync ## @service Start the system service
 	@printf "${GREEN}▶️  Starting HotPlex service...${NC}\n"
 	@chmod +x $(SERVICE_SCRIPT)
 	@$(SERVICE_SCRIPT) start
@@ -312,7 +312,7 @@ service-stop: ## @service Stop the system service
 	@chmod +x $(SERVICE_SCRIPT)
 	@$(SERVICE_SCRIPT) stop
 
-service-restart: ## @service Restart the system service
+service-restart: sync ## @service Restart the system service
 	@printf "${PURPLE}🔄 Restarting HotPlex service...${NC}\n"
 	@chmod +x $(SERVICE_SCRIPT)
 	@$(SERVICE_SCRIPT) restart
@@ -496,9 +496,7 @@ docker-prepare: ## @docker Prepare host directories for all bot instances
 	done
 	@printf "${GREEN}✅ Host environment ready${NC}\n"
 
-docker-up: docker-prepare ## @docker Start Matrix services using REMOTE image
-	@cp -r configs/* $(HOST_CONFIGS_DIR)/ 2>/dev/null || true
-	@printf "${CYAN}🔄 Configs synced to ${BOLD}$(HOST_CONFIGS_DIR)${NC}\n"
+docker-up: docker-prepare docker-sync ## @docker Start Matrix services using REMOTE image
 	@IMG=$$(cd docker/matrix && docker compose config --images 2>/dev/null | head -n 1); \
 	[ -z "$$IMG" ] && IMG="ghcr.io/hrygo/hotplex:latest-go (default)"; \
 	printf "${YELLOW}🚀 Environment: MATRIX (REMOTE)${NC}\n"; \
@@ -511,9 +509,7 @@ docker-up: docker-prepare ## @docker Start Matrix services using REMOTE image
 		HOTPLEX_HOST_CONFIGS_DIR=$(HOST_CONFIGS_DIR) \
 		docker compose up -d
 
-docker-dev: docker-prepare ## @docker Start Matrix services using LOCAL image (hotplex:go)
-	@cp -r configs/* $(HOST_CONFIGS_DIR)/ 2>/dev/null || true
-	@printf "${CYAN}🔄 Configs synced to ${BOLD}$(HOST_CONFIGS_DIR)${NC}\n"
+docker-dev: docker-prepare docker-sync ## @docker Start Matrix services using LOCAL image (hotplex:go)
 	@printf "${YELLOW}🚀 Environment: LOCAL DEVELOPMENT${NC}\n"; \
 	printf "${PURPLE}🐳 Image: ${BOLD}hotplex:go${NC}\n"; \
 	cd docker/matrix && \
@@ -538,9 +534,44 @@ docker-restart: ## @docker Restart services (down → sync → up)
 docker-logs: ## @docker Follow container logs (Ctrl+C to stop)
 	cd docker/matrix && docker compose logs -f
 
-docker-sync: docker-prepare ## @docker Sync local configs to host dir
-	@cp -r configs/* $(HOST_CONFIGS_DIR)/
-	@printf "${GREEN}✅ Configs synced to ${BOLD}$(HOST_CONFIGS_DIR)${NC}\n"
+# --- Config Sync ---
+
+sync: ## @config Sync configs to ~/.hotplex/ (admin bot)
+	@$(call SECTION_HEADER,🔄 Syncing Configs)
+	@mkdir -p $(HOME_DIR)/.hotplex/seed
+	@mkdir -p $(HOME_DIR)/.hotplex/configs/base
+	@printf "  ${CYAN}→${NC} Syncing base templates to seed...\n"
+	@cp -r configs/base/* $(HOME_DIR)/.hotplex/seed/
+	@printf "  ${CYAN}→${NC} Syncing admin config...\n"
+	@cp -r configs/admin/* $(HOME_DIR)/.hotplex/configs/
+	@printf "  ${CYAN}→${NC} Syncing base templates to admin config...\n"
+	@cp -r configs/base/* $(HOME_DIR)/.hotplex/configs/base/
+	@printf "${GREEN}✓${NC} Synced to ${BOLD}$(HOME_DIR)/.hotplex/${NC}\n"
+
+add-bot: ## @docker Interactive bot instance creation
+	@./docker/matrix/add-bot.sh
+
+docker-sync: docker-prepare ## @docker Sync configs to all Docker instances
+	@$(call SECTION_HEADER,🔄 Syncing Docker Instance Configs)
+	@for f in docker/matrix/.env-*; do \
+		ID=$$(grep "^HOTPLEX_BOT_ID=" $$f | cut -d= -f2 | tr -d ' ' | tr -d '\r'); \
+		BOT_NUM=$$(basename $$f | sed 's/.env-//'); \
+		if [ -n "$$ID" ]; then \
+			INSTANCE_DIR=$(HOME_DIR)/.hotplex/instances/$$ID/configs; \
+			mkdir -p "$$INSTANCE_DIR/base"; \
+			mkdir -p $(HOME_DIR)/.hotplex/instances/$$ID/claude; \
+			mkdir -p $(HOME_DIR)/.hotplex/instances/$$ID/projects; \
+			mkdir -p $(HOME_DIR)/.hotplex/instances/$$ID/sessions; \
+			mkdir -p $(HOME_DIR)/.hotplex/instances/$$ID/storage; \
+			printf "  ${CYAN}→${NC} Syncing ${BOLD}$$ID${NC} (bot-$$BOT_NUM)...\n"; \
+			cp -r configs/base/* "$$INSTANCE_DIR/base/"; \
+			if [ -d "docker/matrix/configs/bot-$$BOT_NUM" ]; then \
+				cp docker/matrix/configs/bot-$$BOT_NUM/*.yaml "$$INSTANCE_DIR/" 2>/dev/null || true; \
+			fi; \
+			printf "${GREEN}✓${NC} Synced ${BOLD}$$ID${NC}\n"; \
+		fi; \
+	done
+	@printf "${GREEN}✅ All Docker instances synced${NC}\n"
 
 docker-health: ## @docker Show health status of all services
 	cd docker/matrix && for svc in $$(docker compose ps --services 2>/dev/null); do \
@@ -571,7 +602,7 @@ stack-all: docker-build-all
 stack-clean: docker-clean
 
 .PHONY: all help build build-all fmt vet test test-unit test-race test-integration test-all lint tidy clean \
-        install-hooks run stop restart docs svg2png config-info \
+        install-hooks run stop restart docs svg2png config-info sync add-bot \
         service-install service-uninstall service-start service-stop service-restart \
         service-status service-logs service-enable service-disable \
         docker-build-base docker-build-app docker-build-stack docker-build-all \

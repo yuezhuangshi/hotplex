@@ -15,11 +15,11 @@ import (
 
 func TestDefaultStrategy_ShouldStore_Storable(t *testing.T) {
 	s := NewDefaultStrategy()
-	
+
 	msg := &ChatAppMessage{
 		MessageType: types.MessageTypeUserInput,
 	}
-	
+
 	if !s.ShouldStore(msg) {
 		t.Error("ShouldStore should return true for storable message types")
 	}
@@ -27,11 +27,11 @@ func TestDefaultStrategy_ShouldStore_Storable(t *testing.T) {
 
 func TestDefaultStrategy_ShouldStore_NotStorable(t *testing.T) {
 	s := NewDefaultStrategy()
-	
+
 	msg := &ChatAppMessage{
 		MessageType: types.MessageTypeThinking,
 	}
-	
+
 	if s.ShouldStore(msg) {
 		t.Error("ShouldStore should return false for non-storable message types")
 	}
@@ -39,7 +39,7 @@ func TestDefaultStrategy_ShouldStore_NotStorable(t *testing.T) {
 
 func TestDefaultStrategy_BeforeStore(t *testing.T) {
 	s := NewDefaultStrategy()
-	
+
 	msg := &ChatAppMessage{Content: "test"}
 	err := s.BeforeStore(context.Background(), msg)
 	if err != nil {
@@ -49,7 +49,7 @@ func TestDefaultStrategy_BeforeStore(t *testing.T) {
 
 func TestDefaultStrategy_AfterStore(t *testing.T) {
 	s := NewDefaultStrategy()
-	
+
 	msg := &ChatAppMessage{Content: "test"}
 	err := s.AfterStore(context.Background(), msg)
 	if err != nil {
@@ -63,7 +63,7 @@ func TestDefaultStrategy_AfterStore(t *testing.T) {
 
 func TestMessageQuery_Defaults(t *testing.T) {
 	q := &MessageQuery{}
-	
+
 	if q.Limit != 0 {
 		t.Errorf("Limit default = %d, want 0", q.Limit)
 	}
@@ -78,20 +78,20 @@ func TestMessageQuery_Defaults(t *testing.T) {
 func TestMessageQuery_Custom(t *testing.T) {
 	now := time.Now()
 	q := &MessageQuery{
-		ChatSessionID:      "chat-123",
-		ChatUserID:         "user-456",
-		EngineSessionID:    uuid.New(),
-		ProviderType:       "claude",
-		ProviderSessionID:  "prov-789",
-		StartTime:          &now,
-		EndTime:            &now,
-		MessageTypes:       []types.MessageType{types.MessageTypeUserInput},
-		Limit:              100,
-		Offset:             10,
-		Ascending:          true,
-		IncludeDeleted:     true,
+		ChatSessionID:     "chat-123",
+		ChatUserID:        "user-456",
+		EngineSessionID:   uuid.New(),
+		ProviderType:      "claude",
+		ProviderSessionID: "prov-789",
+		StartTime:         &now,
+		EndTime:           &now,
+		MessageTypes:      []types.MessageType{types.MessageTypeUserInput},
+		Limit:             100,
+		Offset:            10,
+		Ascending:         true,
+		IncludeDeleted:    true,
 	}
-	
+
 	if q.ChatSessionID != "chat-123" {
 		t.Errorf("ChatSessionID = %s", q.ChatSessionID)
 	}
@@ -118,7 +118,7 @@ func TestSessionMeta_Fields(t *testing.T) {
 		MessageCount:  42,
 		UpdatedAt:     now,
 	}
-	
+
 	if meta.ChatSessionID != "chat-123" {
 		t.Errorf("ChatSessionID = %s", meta.ChatSessionID)
 	}
@@ -156,7 +156,7 @@ func TestChatAppMessage_Fields(t *testing.T) {
 		Deleted:           false,
 		DeletedAt:         nil,
 	}
-	
+
 	if msg.ID != "msg-123" {
 		t.Errorf("ID = %s", msg.ID)
 	}
@@ -174,7 +174,7 @@ func TestChatAppMessage_Deleted(t *testing.T) {
 		Deleted:   true,
 		DeletedAt: &now,
 	}
-	
+
 	if !msg.Deleted {
 		t.Error("Deleted should be true")
 	}
@@ -204,7 +204,7 @@ func TestNewDefaultStrategy(t *testing.T) {
 }
 
 // ========================================
-// Utils Tests  
+// Utils Tests
 // ========================================
 
 func TestValidateMessage(t *testing.T) {
@@ -239,7 +239,7 @@ func TestValidateMessage(t *testing.T) {
 			wantErr: true,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := ValidateMessage(tt.msg)
@@ -261,7 +261,7 @@ func TestSanitizeContent(t *testing.T) {
 		{"", 5, ""},
 		{"short", 10, "short"},
 	}
-	
+
 	for _, tt := range tests {
 		result := SanitizeContent(tt.input, tt.maxLen)
 		if result != tt.expected {
@@ -273,7 +273,7 @@ func TestSanitizeContent(t *testing.T) {
 func TestFormatTimestamp(t *testing.T) {
 	ts := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
 	result := FormatTimestamp(ts)
-	
+
 	// Should not be empty
 	if len(result) == 0 {
 		t.Error("FormatTimestamp should not return empty string")
@@ -292,7 +292,7 @@ func TestParseMessageType(t *testing.T) {
 		{"unknown", "unknown"},
 		{"", "unknown"},
 	}
-	
+
 	for _, tt := range tests {
 		result := ParseMessageType(tt.input)
 		if result != tt.expected {
@@ -306,7 +306,7 @@ func TestBuildSessionID(t *testing.T) {
 	if len(result) == 0 {
 		t.Error("BuildSessionID should not return empty string")
 	}
-	
+
 	// Should be deterministic
 	result2 := BuildSessionID("slack", "U123", "C456")
 	if result != result2 {
@@ -319,7 +319,7 @@ func TestGenerateProviderSessionID(t *testing.T) {
 	if len(result) == 0 {
 		t.Error("GenerateProviderSessionID should not return empty string")
 	}
-	
+
 	// Should be UUID format
 	_, err := uuid.Parse(result)
 	if err != nil {
@@ -341,7 +341,7 @@ func TestMaskSensitiveData(t *testing.T) {
 		// 5+ chars show first 2 and last 2
 		{"abcde", "ab****de"},
 	}
-	
+
 	for _, tt := range tests {
 		result := MaskSensitiveData(tt.input)
 		if result != tt.expected {
@@ -363,7 +363,7 @@ func TestTruncateForLog(t *testing.T) {
 		{"exact", 5, "exact"},
 		{"toolong", 4, "tool..."},
 	}
-	
+
 	for _, tt := range tests {
 		result := TruncateForLog(tt.input, tt.maxLen)
 		if result != tt.expected {
@@ -379,7 +379,7 @@ func TestTruncateForLog_DefaultMaxLen(t *testing.T) {
 		longString = longString[:i] + "a" + longString[i+1:]
 	}
 	longString = "abcdefghijklmnopqrstuvwxyz"
-	
+
 	result := TruncateForLog(longString, 0) // 0 should use default
 	// Default is 200, so this should not be truncated
 	if len(result) > 200 {

@@ -1,140 +1,218 @@
 ---
 name: Docker Container Operations
-description: This skill should be used when the user asks to "manage Docker containers", "restart hotplex container", "check container status", "scale hotplex", "stop bot", "start bot". Provides container lifecycle management for hotplex deployment.
-version: 0.1.0
+description: Use this skill when the user asks to "manage Docker containers", "restart hotplex", "check container status", "scale hotplex", "stop bot", "start bot", "docker restart", "docker up", "docker down". Provides container lifecycle management for hotplex deployment.
+version: 0.2.0
 ---
 
 # Docker Container Operations
 
 Manage the lifecycle of hotplex containers running in Docker Compose deployment.
 
-## Overview
+## Critical: Working Directory
 
-This skill provides administrative operations for hotplex Docker containers. It interacts with the docker CLI and docker-compose to manage container lifecycle, scaling, and resource monitoring.
-
-## Prerequisites
-
-- Docker CLI installed on the host
-- docker-compose or docker compose plugin available
-- Permission to run docker commands
-- HotPlex deployed via docker-compose
-
-## Container Operations
-
-### List All Containers
-
-List all hotplex containers with their status:
+**All docker compose commands MUST be executed from the compose directory.**
 
 ```bash
-docker compose ps
+COMPOSE_DIR="~/hotplex/docker/matrix"
 ```
+
+**Pattern**: Always prefix docker compose commands with `cd $COMPOSE_DIR &&`:
+```bash
+cd ~/hotplex/docker/matrix && docker compose ps
+```
+
+## Container Reference
+
+| Container | Port | Bot ID | Role | Env File |
+|:----------|:-----|:-------|:-----|:---------|
+| hotplex-01 | 18080 | U0AHRCL1KCM | Primary | .env-01 |
+| hotplex-02 | 18081 | U0AJVRH4YF6 | Secondary | .env-02 |
+| hotplex-03 | 18082 | U0AL7H8UU75 | Secondary | .env-03 |
+
+## Quick Operations
+
+### Check All Container Status
+
+```bash
+cd ~/hotplex/docker/matrix && docker compose ps
+```
+
+### Start All Containers
+
+```bash
+cd ~/hotplex/docker/matrix && docker compose up -d
+```
+
+### Stop All Containers
+
+```bash
+cd ~/hotplex/docker/matrix && docker compose down
+```
+
+### Restart All Containers
+
+```bash
+cd ~/hotplex/docker/matrix && docker compose restart
+```
+
+## Single Container Operations
 
 ### Start a Container
 
-Start a specific hotplex service:
-
 ```bash
-docker compose up -d hotplex-01
-docker compose up -d hotplex-02
+cd ~/hotplex/docker/matrix && docker compose up -d hotplex-01
 ```
 
 ### Stop a Container
 
-Stop a specific hotplex service:
-
 ```bash
-docker compose stop hotplex-01
+cd ~/hotplex/docker/matrix && docker compose stop hotplex-01
 ```
 
 ### Restart a Container
 
-Restart a specific hotplex service:
-
 ```bash
-docker compose restart hotplex-01
+cd ~/hotplex/docker/matrix && docker compose restart hotplex-01
 ```
 
-### Remove a Container
+### Recreate Container (Reload Env)
 
-Remove a stopped container:
+**Important**: Use `up -d` instead of `restart` to reload `.env` file changes:
 
 ```bash
-docker compose rm hotplex-01
+cd ~/hotplex/docker/matrix && docker compose up -d hotplex-01
 ```
 
 ### View Container Logs
 
-View real-time logs from a container:
-
 ```bash
-docker compose logs -f hotplex-01
-docker compose logs --tail=100 hotplex-02
+# Recent logs
+cd ~/hotplex/docker/matrix && docker compose logs --tail=100 hotplex-01
+
+# Follow logs
+cd ~/hotplex/docker/matrix && docker compose logs -f hotplex-01
 ```
 
 ### View Resource Usage
 
-Check CPU and memory usage:
-
 ```bash
-docker stats $(docker compose ps -q)
-docker stats hotplex hotplex-02
+docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}" \
+  hotplex-01 hotplex-02 hotplex-03
 ```
 
-## Multi-Bot Architecture
+## Multi-Container Operations
 
-### Adding New Bots
-To add a new bot, create a new `.env-NN` file and add service definition in docker-compose.yml.
+### Restart Multiple Containers
 
-### Important Constraints
-- **One instance per bot**: Each bot MUST run as a single container
-- **Unique bot_user_id**: Each bot must have a unique `SLACK_BOT_USER_ID` in its `.env` file
-- **Reason**: Session ID = `platform:userID:botUserID:channelID:threadID`, duplicate bot_user_id causes session collision
+```bash
+cd ~/hotplex/docker/matrix && docker compose restart hotplex-01 hotplex-02
+```
 
-## Configuration
+### Recreate Multiple Containers
 
-The skill uses the docker-compose.yml file at `docker/matrix/`. All commands run in that directory.
+```bash
+cd ~/hotplex/docker/matrix && docker compose up -d hotplex-01 hotplex-02
+```
 
-### Container Naming Convention
-- Format: `hotplex-{NN}` (e.g., hotplex-01, hotplex-02)
-- Each container represents one bot instance
-- **IMPORTANT**: Each bot MUST have only ONE running instance. Multiple instances of the same bot will cause Slack message routing confusion.
+### Check Health of All Containers
 
-### Dynamic Container Discovery
-When user mentions a specific bot, use the corresponding container name:
-- Ask user which bot they want to manage if not specified
-- Use `docker compose ps` to list available containers
-- Replace `<BOT>` in commands below with actual container name
+```bash
+for bot in hotplex-01 hotplex-02 hotplex-03; do
+  status=$(docker inspect $bot --format='{{.State.Health.Status}}' 2>/dev/null || echo "not found")
+  echo "$bot: $status"
+done
+```
 
-### Default Ports (Examples)
-- hotplex-01: 18080 (example)
-- hotplex-02: 18081 (example)
-- Port is configured in docker-compose.yml
+## Configuration Management
 
 ### Environment Files
-- Format: `.env-{NN}` (e.g., .env-01, .env-02)
-- Each bot has its own credentials file
 
-> **Warning**: Never scale a bot to more than 1 instance. Slack消息路由依赖bot_user_id，单一bot多实例会导致消息错乱。
+| File | Purpose |
+|:-----|:--------|
+| `.env` | Global image selection |
+| `.env-01` | Bot 01 credentials |
+| `.env-02` | Bot 02 credentials |
+| `.env-03` | Bot 03 credentials |
+
+### After Updating .env Files
+
+**Must use `up -d` to reload environment variables**:
+
+```bash
+cd ~/hotplex/docker/matrix && docker compose up -d hotplex-01
+```
+
+`restart` will NOT reload `.env` file changes!
+
+### Rebuild and Restart
+
+```bash
+cd ~/hotplex/docker/matrix && \
+docker compose build hotplex-01 && \
+docker compose up -d hotplex-01
+```
+
+## Adding New Bots
+
+1. Create `.env-NN` file in `docker/matrix/`
+2. Add service definition in `docker-compose.yml`
+3. Create instance directory: `mkdir -p ~/.hotplex/instances/<BOT_ID>`
+4. Start: `docker compose up -d hotplex-NN`
+
+## Important Constraints
+
+- **One instance per bot**: Each bot MUST run as a single container
+- **Unique bot_user_id**: Each bot must have a unique `HOTPLEX_SLACK_BOT_USER_ID`
+- **Session collision**: Duplicate bot_user_id causes session ID conflicts
+
+> **Warning**: Never use `--scale` to run multiple instances of the same bot. Slack message routing depends on bot_user_id uniqueness.
 
 ## Troubleshooting
 
-- If container fails to start, check logs: `docker compose logs <BOT>`
-- Verify container health: `docker inspect <BOT> --format='{{.State.Health}}'`
-- Check container networking: `docker network ls`
+### Container Won't Start
 
-> **Important**: Do NOT use `--scale` to run multiple instances of the same bot. This will cause Slack message routing issues.
+```bash
+# Check logs
+cd ~/hotplex/docker/matrix && docker compose logs hotplex-01
+
+# Check container status
+docker inspect hotplex-01
+
+# Check if port is in use
+lsof -i :18080
+```
+
+### Container Health Check Failed
+
+```bash
+docker inspect hotplex-01 --format='{{json .State.Health}}' | jq
+```
+
+### Network Issues
+
+```bash
+docker network ls
+docker network inspect hotplex_default
+```
+
+## Container Discovery
+
+If user doesn't specify which bot:
+
+```bash
+cd ~/hotplex/docker/matrix && docker compose ps
+```
+
+Then use the container name (hotplex-01, hotplex-02, or hotplex-03) in subsequent commands.
 
 ## Additional Resources
 
 ### Reference Files
 
-- **`docker/matrix/docker-compose.yml`** - Container deployment configuration
-- **`docker/matrix/.env-01`** - Bot1 credentials
-- **`docker/matrix/.env-02`** - Bot2 credentials
-- **`docker/matrix/.env-03`** - Bot3 credentials
-- **`references/docker-commands.md`** - Complete Docker CLI reference
+- `docker/matrix/docker-compose.yml` - Container deployment configuration
+- `docker/matrix/common.yml` - Shared container configuration
 
 ### Related Skills
 
-- **`hotplex-diagnostics`** - For log analysis and debugging
-- **`hotplex-data-mgmt`** - For data and session management
+- `hotplex-diagnostics` - For log analysis and debugging
+- `hotplex-data-mgmt` - For data and session management

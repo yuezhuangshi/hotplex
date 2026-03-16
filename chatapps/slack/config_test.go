@@ -673,4 +673,5 @@ func TestConfig_CanRespond(t *testing.T) {
 		})
 	}
 }
+
 // Trigger CI codecov
