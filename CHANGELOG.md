@@ -1,5 +1,15 @@
 # CHANGELOG.md
 
+## [v0.30.2] - 2026-03-16
+
+### Fixed
+- **Release Skill** - Added complete version update checklist (5 locations) to prevent missing version sync
+
+### Changed
+- **CLAUDE.md** - Added Section 9: Release Checklist documenting all version update locations
+
+---
+
 ## [v0.30.1] - 2026-03-16
 
 ### Fixed
