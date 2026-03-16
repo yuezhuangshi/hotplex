@@ -49,7 +49,7 @@ func TestClaudeCodeProvider_BuildCLIArgs(t *testing.T) {
 
 	opts := &ProviderSessionOptions{
 		WorkDir:          "/tmp/test",
-		PermissionMode:   "bypass-permissions",
+		PermissionMode:   "bypassPermissions",
 		AllowedTools:     []string{"bash", "read"},
 		BaseSystemPrompt: "You are a helpful assistant",
 	}
@@ -66,7 +66,7 @@ func TestClaudeCodeProvider_BuildCLIArgs(t *testing.T) {
 	assertContains(t, args, "--session-id")
 	assertContains(t, args, "test-session-id")
 	assertContains(t, args, "--permission-mode")
-	assertContains(t, args, "bypass-permissions")
+	assertContains(t, args, "bypassPermissions")
 	assertContains(t, args, "--allowed-tools")
 	assertContains(t, args, "--append-system-prompt")
 }

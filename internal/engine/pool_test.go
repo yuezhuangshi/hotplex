@@ -123,7 +123,7 @@ func TestMonitorStartup_Timeout(t *testing.T) {
 func TestSessionPool_buildCLIArgs(t *testing.T) {
 	logger := newTestLogger()
 	prv, err := provider.NewClaudeCodeProvider(provider.ProviderConfig{
-		DefaultPermissionMode: "bypass-permissions",
+		DefaultPermissionMode: "bypassPermissions",
 		AllowedTools:          []string{"bash", "edit"},
 		DisallowedTools:       []string{"dangerous"},
 	}, logger)
@@ -133,7 +133,7 @@ func TestSessionPool_buildCLIArgs(t *testing.T) {
 
 	pool := NewSessionPool(logger, 30*time.Minute, EngineOptions{
 		Namespace:        "test",
-		PermissionMode:   "bypass-permissions",
+		PermissionMode:   "bypassPermissions",
 		AllowedTools:     []string{"bash", "edit"},
 		DisallowedTools:  []string{"dangerous"},
 		BaseSystemPrompt: "You are helpful",

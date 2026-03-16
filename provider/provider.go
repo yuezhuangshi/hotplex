@@ -115,7 +115,7 @@ type ProviderSessionOptions struct {
 	// Working directory for the CLI process
 	WorkDir string
 
-	// Permission mode (e.g., "bypass-permissions", "auto-accept")
+	// Permission mode (e.g., "bypassPermissions", "acceptEdits", "default")
 	PermissionMode string
 
 	// DangerouslySkipPermissions bypasses all permission checks

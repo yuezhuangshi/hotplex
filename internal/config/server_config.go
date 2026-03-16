@@ -134,10 +134,10 @@ func (l *ServerLoader) validate() error {
 	// Validate permission mode
 	lowerPerm := strings.ToLower(l.config.Security.PermissionMode)
 	switch lowerPerm {
-	case "", "strict", "bypass-permissions":
+	case "", "strict", "bypasspermissions":
 		// valid
 	default:
-		return fmt.Errorf("invalid permission_mode: %q (must be 'strict', 'bypass-permissions', or empty for default)", l.config.Security.PermissionMode)
+		return fmt.Errorf("invalid permission_mode: %q (must be 'strict', 'bypassPermissions', or empty for default)", l.config.Security.PermissionMode)
 	}
 
 	// Validate log level

@@ -20,7 +20,7 @@ func main() {
 		Timeout:        30 * time.Second,
 		Logger:         logger,
 		Namespace:      "error-handling-demo",
-		PermissionMode: "bypass-permissions",
+		PermissionMode: "bypassPermissions",
 	}
 
 	engine, err := hotplex.NewEngine(opts)

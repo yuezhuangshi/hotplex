@@ -530,7 +530,7 @@ platform: slack
 provider:
   type: claude-code
   default_model: sonnet
-  default_permission_mode: bypass-permissions
+  default_permission_mode: bypassPermissions
 `
 	if err := os.WriteFile(filepath.Join(baseDir, "slack.yaml"), []byte(parentConfig), 0644); err != nil {
 		t.Fatalf("Failed to write parent config: %v", err)
