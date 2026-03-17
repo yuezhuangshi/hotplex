@@ -67,7 +67,7 @@ func NewClaudeCodeProvider(cfg ProviderConfig, logger *slog.Logger) (*ClaudeCode
 	meta := ProviderMeta{
 		Type:        ProviderTypeClaudeCode,
 		DisplayName: "Claude Code",
-		BinaryName:  "claude",
+		BinaryName:  "ccr code",
 		InstallHint: "npm install -g @anthropic-ai/claude-code",
 		Features: ProviderFeatures{
 			SupportsResume:      true,

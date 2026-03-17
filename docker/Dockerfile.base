@@ -22,7 +22,7 @@ RUN ARCH=$(uname -m) && \
 FROM node:24-bookworm-slim AS npm-tools-collector
 ARG NPM_MIRROR
 RUN if [ -n "$NPM_MIRROR" ]; then npm config set registry "$NPM_MIRROR"; fi && \
-    npm install -g @anthropic-ai/claude-code@latest opencode-ai @mariozechner/pi-coding-agent && \
+    npm install -g @anthropic-ai/claude-code@latest @musistudio/claude-code-router opencode-ai @mariozechner/pi-coding-agent && \
     npm cache clean --force
 
 # --- Final Stage: Shared Foundation ---
@@ -77,6 +77,7 @@ COPY --from=tools-collector /usr/local/bin/websocat /usr/local/bin/websocat
 COPY --from=npm-tools-collector /usr/local/lib/node_modules/ /usr/local/lib/node_modules/
 # Create symlinks manually (npm package structure may change between versions)
 RUN ln -sf /usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js /usr/local/bin/claude && \
+    ln -sf /usr/local/lib/node_modules/@musistudio/claude-code-router/cli.js /usr/local/bin/ccr && \
     ln -sf /usr/local/lib/node_modules/opencode-ai/bin/opencode /usr/local/bin/opencode && \
     ln -sf /usr/local/lib/node_modules/@mariozechner/pi-coding-agent/dist/cli.js /usr/local/bin/pi
 
@@ -88,7 +89,8 @@ ENV PATH="/usr/local/bin:${PATH}"
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
 # default CMD (can be overridden by stacks)
-CMD ["bash"]
+ENTRYPOINT ["ccr"]
+CMD ["start"]
 
 LABEL org.opencontainers.image.vendor="HotPlex"
 LABEL org.opencontainers.image.title="HotPlex Foundation (Static)"
